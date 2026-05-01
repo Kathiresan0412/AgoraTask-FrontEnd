@@ -3,10 +3,12 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Save, Lock, Eye, EyeOff, User, Mail, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import api from '@/lib/api';
 
 export function SettingsPanel() {
   const { user, updateProfile } = useAuth();
+  const { t } = useLanguage();
 
   // Profile fields
   const [name, setName] = useState(user?.name || '');
@@ -100,14 +102,14 @@ export function SettingsPanel() {
 
   return (
     <div className="w-full max-w-3xl mx-auto pb-12">
-      <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-6">Profile & Settings</h1>
+      <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-6">{t('profile.title')}</h1>
 
       <div className="space-y-6">
         {/* Profile Card */}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 rounded-3xl p-8 shadow-sm">
           <h2 className="text-lg font-bold text-[#171717] dark:text-white mb-6 flex items-center gap-2">
             <User className="w-5 h-5 text-neutral-400" />
-            Personal Information
+            {t('profile.personalInfo')}
           </h2>
 
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
@@ -140,12 +142,12 @@ export function SettingsPanel() {
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">Display Name</label>
+            <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.displayName')}</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="block w-full rounded-full border-0 py-3 px-5 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder="Your display name" />
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-neutral-400 mb-2">Email Address <span className="text-xs">(read-only)</span></label>
+            <label className="block text-sm font-medium text-neutral-400 mb-2">{t('profile.emailReadOnly')}</label>
             <input type="email" value={user.email} disabled className="block w-full rounded-full border-0 py-3 px-5 text-neutral-400 bg-neutral-100 dark:bg-neutral-800 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-700 text-sm cursor-not-allowed" />
           </div>
 
@@ -162,7 +164,7 @@ export function SettingsPanel() {
 
           <button onClick={handleSaveProfile} disabled={isSavingProfile} className="inline-flex items-center gap-2 bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-7 py-3 rounded-full text-sm font-bold shadow-sm hover:bg-black dark:hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
             {isSavingProfile ? <span className="animate-spin rounded-full h-4 w-4 border-2 border-white dark:border-[#171717] border-t-transparent" /> : <Save className="w-4 h-4" />}
-            Save Changes
+            {t('common.save')}
           </button>
         </div>
 
@@ -170,14 +172,14 @@ export function SettingsPanel() {
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 rounded-3xl p-8 shadow-sm">
           <h2 className="text-lg font-bold text-[#171717] dark:text-white mb-6 flex items-center gap-2">
             <Lock className="w-5 h-5 text-neutral-400" />
-            Change Password
+            {t('profile.changePassword')}
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">Current Password</label>
+              <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.currentPassword')}</label>
               <div className="relative">
-                <input type={showCurrent ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder="Enter current password" />
+                <input type={showCurrent ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder={t('profile.currentPasswordPlaceholder')} />
                 <button type="button" onClick={() => setShowCurrent(!showCurrent)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
                   {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -185,9 +187,9 @@ export function SettingsPanel() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">New Password</label>
+              <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.newPassword')}</label>
               <div className="relative">
-                <input type={showNew ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder="Min. 6 characters" />
+                <input type={showNew ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder={t('profile.newPasswordPlaceholder')} />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
                   {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -195,9 +197,9 @@ export function SettingsPanel() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">Confirm New Password</label>
+              <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.confirmNewPassword')}</label>
               <div className="relative">
-                <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder="Repeat new password" />
+                <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder={t('profile.confirmPasswordPlaceholder')} />
                 <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
                   {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -212,7 +214,7 @@ export function SettingsPanel() {
                   <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${newPassword.length >= i * 2 ? newPassword.length >= 8 ? 'bg-green-500' : 'bg-amber-400' : 'bg-neutral-200 dark:bg-neutral-700'}`} />
                 ))}
               </div>
-              <p className="text-xs text-neutral-400">{newPassword.length < 6 ? 'Too short' : newPassword.length < 8 ? 'Fair' : 'Strong password'}</p>
+              <p className="text-xs text-neutral-400">{newPassword.length < 6 ? t('profile.strengthTooShort') : newPassword.length < 8 ? t('profile.strengthFair') : t('profile.strengthStrong')}</p>
             </div>
           )}
 
@@ -229,7 +231,7 @@ export function SettingsPanel() {
 
           <button onClick={handleChangePassword} disabled={isSavingPassword} className="inline-flex items-center gap-2 mt-6 bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-7 py-3 rounded-full text-sm font-bold shadow-sm hover:bg-black dark:hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
             {isSavingPassword ? <span className="animate-spin rounded-full h-4 w-4 border-2 border-white dark:border-[#171717] border-t-transparent" /> : <Lock className="w-4 h-4" />}
-            Update Password
+            {t('profile.updatePassword')}
           </button>
         </div>
       </div>

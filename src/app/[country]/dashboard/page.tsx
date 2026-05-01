@@ -8,11 +8,13 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'next/navigation';
 import CustomerAssistant from '@/components/chat/CustomerAssistant';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function UserDashboard() {
   const { user } = useAuth();
   const params = useParams();
   const country = params?.country as string || 'lk';
+  const { t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 flex flex-col">
@@ -22,7 +24,7 @@ export default function UserDashboard() {
         <div className="flex justify-between items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight">
-              Welcome, {user?.name || 'Customer'}!
+              {t('dashboard.welcome')}, {user?.name || 'Customer'}!
             </h1>
             <p className="text-sm text-slate-500 mt-1">{user?.email}</p>
           </div>
@@ -37,10 +39,10 @@ export default function UserDashboard() {
               ) : (
                 <User className="w-4 h-4" />
               )}
-              Profile
+              {t('nav.profile')}
             </Link>
             <Link href={`/${country}/services`} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-full shadow-sm text-sm">
-              Book New Service
+              {t('dashboard.findService')}
             </Link>
           </div>
         </div>
@@ -48,9 +50,7 @@ export default function UserDashboard() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl shadow-slate-200/20 dark:shadow-none">
           {/* Tabs */}
           <div className="flex border-b border-slate-200 dark:border-slate-800 px-6 gap-2 bg-slate-50/50 dark:bg-slate-900">
-            <button className="px-6 py-4 font-bold text-indigo-600 border-b-2 border-indigo-600">Upcoming Bookings</button>
-            <button className="px-6 py-4 font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Past Bookings</button>
-            <button className="px-6 py-4 font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Reviews & Ratings</button>
+            <button className="px-6 py-4 font-bold text-indigo-600 border-b-2 border-indigo-600">{t('dashboard.recentBookings')}</button>
           </div>
 
           {/* Content */}
@@ -59,7 +59,7 @@ export default function UserDashboard() {
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-4 w-4 text-slate-400" />
               </div>
-              <input type="text" className="pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full md:w-64" placeholder="Search bookings..."/>
+              <input type="text" className="pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full md:w-64" placeholder={t('common.search')}/>
             </div>
 
             <div className="space-y-4">
@@ -86,8 +86,7 @@ export default function UserDashboard() {
                 </div>
 
                 <div className="flex md:flex-col gap-3 w-full md:w-32 mt-4 md:mt-0 shrink-0">
-                  <button className="flex-1 md:flex-none border border-slate-200 dark:border-slate-700 font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Reschedule</button>
-                  <Link href="/services" className="flex-1 md:flex-none bg-indigo-600 shadow-md shadow-indigo-600/20 text-white font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-indigo-700 transition-colors text-center block">View Details</Link>
+                  <Link href="/services" className="flex-1 md:flex-none bg-indigo-600 shadow-md shadow-indigo-600/20 text-white font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-indigo-700 transition-colors text-center block">{t('dashboard.viewBookings')}</Link>
                 </div>
               </div>
               

@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -24,6 +25,7 @@ export default function LoginPage() {
 
   const [loginError, setLoginError] = useState('');
   const { login, isLoading } = useAuth();
+  const { t } = useLanguage();
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -66,12 +68,12 @@ export default function LoginPage() {
           </Link>
         </div>
         <h2 className="mt-8 text-center text-3xl font-bold tracking-tight text-[#171717] dark:text-white">
-          Sign in to your account
+          {t('login.title')}
         </h2>
         <p className="mt-2 text-center text-sm text-neutral-500 dark:text-neutral-400">
-          Or{' '}
-          <Link href={`/${country}/register`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all">
-            create a new account
+          {t('login.noAccount')}
+          <Link href={`/${country}/register`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all ml-1">
+            {t('login.signUpHere')}
           </Link>
         </p>
       </div>
@@ -83,7 +85,7 @@ export default function LoginPage() {
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-[#171717] dark:text-neutral-300">
-                Email address
+                {t('common.email')}
               </label>
               <div className="mt-2 relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -98,7 +100,7 @@ export default function LoginPage() {
                       ? 'ring-red-300 dark:ring-red-900 focus:ring-red-500'
                       : 'ring-neutral-200 dark:ring-neutral-800 focus:ring-[#171717] dark:focus:ring-white'
                   }`}
-                  placeholder="you@example.com"
+                  placeholder={t('login.emailPlaceholder')}
                   {...register('email')}
                 />
               </div>
@@ -110,7 +112,7 @@ export default function LoginPage() {
             {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-[#171717] dark:text-neutral-300">
-                Password
+                {t('common.password')}
               </label>
               <div className="mt-2 relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -151,12 +153,12 @@ export default function LoginPage() {
                   {...register('rememberMe')}
                 />
                 <label htmlFor="rememberMe" className="ml-2 block text-sm text-neutral-600 dark:text-neutral-400 cursor-pointer">
-                  Remember me
+                  {t('login.rememberMe')}
                 </label>
               </div>
               <div className="text-sm leading-6">
                 <Link href={`/${country}/forgot-password`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all">
-                  Forgot password?
+                  {t('login.forgotPassword')}
                 </Link>
               </div>
             </div>
@@ -172,7 +174,7 @@ export default function LoginPage() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    Sign In
+                    {t('common.login')}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -187,7 +189,7 @@ export default function LoginPage() {
                 <div className="w-full border-t border-neutral-200 dark:border-neutral-800" />
               </div>
               <div className="relative flex justify-center text-sm font-medium leading-6">
-                <span className="bg-white dark:bg-neutral-900 px-6 text-neutral-500">Or continue with</span>
+                <span className="bg-white dark:bg-neutral-900 px-6 text-neutral-500">{t('login.orContinueWith')}</span>
               </div>
             </div>
 
@@ -204,7 +206,7 @@ export default function LoginPage() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                Google (coming soon)
+                {t('login.googleComingSoon')}
               </button>
             </div>
           </div>

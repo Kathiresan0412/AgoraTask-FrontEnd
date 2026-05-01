@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, Zap, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // Service categories for the assistant
 const CATEGORIES = [
@@ -25,17 +26,25 @@ const PROVIDER_NAME  = 'Provider User';
 export default function CustomerAssistant() {
   const { user } = useAuth();
   const { sendMessage } = useMessages();
+  const { t } = useLanguage();
 
   const [open, setOpen] = useState(false);
   const [tab, setTab]   = useState<'assistant' | 'inbox'>('assistant');
   const [input, setInput] = useState('');
-  const [chat, setChat] = useState<BotMsg[]>([
-    {
-      role: 'bot',
-      text: "👋 Hi there! I'm your AgoraTask assistant. I can help you find the right service provider quickly.\n\nWhat kind of service are you looking for?",
-      chips: CATEGORIES.map(c => `${c.emoji} ${c.label}`),
-    },
-  ]);
+  const [chat, setChat] = useState<BotMsg[]>([]);
+
+  // Initialize welcome message dynamically on load or language change to support t()
+  useEffect(() => {
+    if (chat.length === 0) {
+      setChat([
+        {
+          role: 'bot',
+          text: t('assistant.greeting'),
+          chips: CATEGORIES.map(c => `${c.emoji} ${c.label === 'Search by name' ? t('assistant.searchByName') : c.label}`),
+        },
+      ]);
+    }
+  }, [t, chat.length]);
   const [awaitingCategory, setAwaitingCategory] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -58,8 +67,8 @@ export default function CustomerAssistant() {
         addMsg('bot', "Sure! Type the service or provider name you're looking for and I'll help you find them.");
       } else {
         addMsg('bot',
-          `Great choice! I'll connect you with top-rated **${label}** providers in your area.\n\nWould you like to:\n• Book directly\n• See ratings & prices\n• Message a provider`,
-          ['📅 Book now', '⭐ See providers', '💬 Message a provider']
+          `Great choice! I'll connect you with top-rated **${label}** providers in your area.\n\nWould you like to:\n• ${t('assistant.bookNow')}\n• ${t('assistant.seeProviders')}\n• ${t('assistant.messageProvider')}`,
+          [`📅 ${t('assistant.bookNow')}`, `⭐ ${t('assistant.seeProviders')}`, `💬 ${t('assistant.messageProvider')}`]
         );
       }
     }, 600);
@@ -124,10 +133,10 @@ export default function CustomerAssistant() {
               <Zap className="w-5 h-5 text-white dark:text-[#171717]" />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-sm text-[#171717] dark:text-white">AgoraTask Assistant</p>
+              <p className="font-bold text-sm text-[#171717] dark:text-white">{t('assistant.title')}</p>
               <p className="text-xs text-neutral-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
-                Online · Find services instantly
+                {t('assistant.status')}
               </p>
             </div>
             <button onClick={() => setOpen(false)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors">
@@ -200,7 +209,7 @@ export default function CustomerAssistant() {
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSend()}
-                    placeholder="Type a service name or question…"
+                    placeholder={t('assistant.inputPlaceholder')}
                     className="flex-1 bg-transparent text-sm text-neutral-800 dark:text-white placeholder:text-neutral-400 outline-none"
                   />
                   <button
@@ -211,7 +220,7 @@ export default function CustomerAssistant() {
                     <Send className="w-3.5 h-3.5 text-white dark:text-[#171717]" />
                   </button>
                 </div>
-                <p className="text-center text-[10px] text-neutral-400 mt-2">Powered by <strong>AgoraTask</strong></p>
+                <p className="text-center text-[10px] text-neutral-400 mt-2">{t('assistant.poweredBy')}</p>
               </div>
             </>
           ) : (
@@ -227,6 +236,7 @@ export default function CustomerAssistant() {
 function InboxTab() {
   const { user } = useAuth();
   const { getInbox, sendMessage, markRead } = useMessages();
+  const { t } = useLanguage();
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -275,11 +285,11 @@ function InboxTab() {
           <div ref={bottomRef} />
         </div>
         <div className="p-3 border-t border-neutral-100 dark:border-neutral-800 flex gap-2">
-          <input value={replyText} onChange={e => setReplyText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="Type a message…"
-            className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-neutral-800 dark:text-white placeholder:text-neutral-400"
-          />
+            <input value={replyText} onChange={e => setReplyText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
+              placeholder={t('messages.typeMessage')}
+              className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-neutral-800 dark:text-white placeholder:text-neutral-400"
+            />
           <button onClick={send} disabled={!replyText.trim()}
             className="w-9 h-9 rounded-full bg-[#171717] dark:bg-white flex items-center justify-center hover:bg-black transition-colors disabled:opacity-30">
             <Send className="w-3.5 h-3.5 text-white dark:text-[#171717]" />
@@ -293,7 +303,7 @@ function InboxTab() {
     <div className="flex-1 overflow-y-auto max-h-[420px]">
       {inbox.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-40 text-neutral-400 text-sm">
-          <p>No conversations yet.</p>
+          <p>{t('messages.noConversations')}</p>
         </div>
       ) : (
         inbox.map(c => {
