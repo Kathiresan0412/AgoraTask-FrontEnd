@@ -3,13 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Save, Lock, Eye, EyeOff, User, Mail, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-
-// Static password store (in-memory for demo)
-const STATIC_PASSWORDS: Record<string, string> = {
-  'admin@gmail.com': 'admin123',
-  'provider@gmail.com': 'provider456',
-  'customer@gmail.com': 'customer789',
-};
+import api from '@/lib/api';
 
 export function SettingsPanel() {
   const { user, updateProfile } = useAuth();
@@ -54,7 +48,7 @@ export function SettingsPanel() {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     setProfileError('');
     setProfileSuccess('');
     if (!name.trim()) {
@@ -62,20 +56,23 @@ export function SettingsPanel() {
       return;
     }
     setIsSavingProfile(true);
-    setTimeout(() => {
+    try {
+      await api.put('/users/profile', { name: name.trim(), profileImage });
       updateProfile(name.trim(), profileImage);
       setProfileSuccess('Profile updated successfully!');
+    } catch (err: any) {
+      setProfileError(err?.response?.data?.error || 'Failed to update profile.');
+    } finally {
       setIsSavingProfile(false);
-    }, 800);
+    }
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     setPasswordError('');
     setPasswordSuccess('');
 
-    const stored = STATIC_PASSWORDS[user.email];
-    if (currentPassword !== stored) {
-      setPasswordError('Current password is incorrect.');
+    if (!currentPassword) {
+      setPasswordError('Please enter your current password.');
       return;
     }
     if (newPassword.length < 6) {
@@ -88,14 +85,17 @@ export function SettingsPanel() {
     }
 
     setIsSavingPassword(true);
-    setTimeout(() => {
-      STATIC_PASSWORDS[user.email] = newPassword;
+    try {
+      await api.put('/users/password', { currentPassword, newPassword });
       setPasswordSuccess('Password changed successfully!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.error || 'Failed to change password.');
+    } finally {
       setIsSavingPassword(false);
-    }, 800);
+    }
   };
 
   return (
