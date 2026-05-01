@@ -3,12 +3,15 @@
 import React from 'react';
 import { Zap, Menu } from "lucide-react";
 import { LoginButton } from '../auth/LoginButton';
+import { LanguageSwitcher } from './LanguageSwitcher';
+import { useLanguage } from '@/contexts/LanguageContext';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 export function Navbar() {
   const params = useParams();
   const country = params?.country || 'lk';
+  const { t } = useLanguage();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md">
@@ -21,12 +24,13 @@ export function Navbar() {
         </Link>
         
         <nav className="hidden md:flex gap-8 items-center font-medium text-sm text-neutral-500 dark:text-neutral-400">
-          <Link href={`/${country}/services`} className="hover:text-[#171717] dark:hover:text-white transition-colors">Services</Link>
-          <Link href={`/${country}/dashboard`} className="hover:text-[#171717] dark:hover:text-white transition-colors">Dashboard</Link>
-          <Link href={`/${country}/providers/colombo-cleaners`} className="hover:text-[#171717] dark:hover:text-white transition-colors">For Providers</Link>
+          <Link href={`/${country}/services`} className="hover:text-[#171717] dark:hover:text-white transition-colors">{t('nav.services')}</Link>
+          <Link href={`/${country}/dashboard`} className="hover:text-[#171717] dark:hover:text-white transition-colors">{t('nav.dashboard')}</Link>
+          <Link href={`/${country}/providers/colombo-cleaners`} className="hover:text-[#171717] dark:hover:text-white transition-colors">{t('nav.becomeProvider')}</Link>
         </nav>
 
         <div className="flex items-center gap-4">
+          <LanguageSwitcher />
           <LoginButton />
           <button className="md:hidden text-slate-500">
             <Menu className="w-6 h-6" />

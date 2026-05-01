@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MessagesProvider } from "@/contexts/MessagesContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -26,11 +27,13 @@ export default function RootLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <AuthProvider>
-          <MessagesProvider>
-            {children}
-          </MessagesProvider>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <MessagesProvider>
+              {children}
+            </MessagesProvider>
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

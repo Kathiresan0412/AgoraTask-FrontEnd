@@ -7,12 +7,14 @@ import {
   ChevronDown, User, Briefcase, Shield, LogOut, Settings
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export function LoginButton() {
   const params = useParams();
   const country = params?.country || 'lk';
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
@@ -106,7 +108,7 @@ export function LoginButton() {
                 ) : (
                   <User className="w-4 h-4" />
                 )}
-                Dashboard
+                {t('nav.dashboard')}
               </Link>
 
               {/* Profile link */}
@@ -116,7 +118,7 @@ export function LoginButton() {
                 className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-[#171717] dark:hover:text-white transition-colors"
               >
                 <Settings className="w-4 h-4" />
-                Profile & Settings
+                {t('profile.title')}
               </Link>
 
               {/* Logout */}
@@ -125,7 +127,7 @@ export function LoginButton() {
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-neutral-100 dark:border-neutral-800 mt-1"
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                {t('profile.signOutTitle')}
               </button>
             </div>
           </>
@@ -141,13 +143,13 @@ export function LoginButton() {
         href={`/${country}/login`}
         className="text-sm font-semibold text-neutral-600 dark:text-neutral-300 hover:text-[#171717] dark:hover:text-white transition-colors hidden sm:block"
       >
-        Sign In
+        {t('common.login')}
       </Link>
       <Link
         href={`/${country}/register`}
         className="bg-[#171717] dark:bg-white text-white dark:text-[#171717] hover:bg-black dark:hover:bg-neutral-200 px-5 py-2.5 rounded-full text-sm font-semibold transition-all shadow-sm active:scale-95"
       >
-        Get Started
+        {t('common.register')}
       </Link>
     </div>
   );
