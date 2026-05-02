@@ -23,6 +23,7 @@ export default function ServicesPage() {
   const params = useParams<{ country?: string }>();
   const country = params.country || 'lk';
   const countryCode = normalizeCountryCode(country);
+  const isCanada = countryCode === 'ca';
   const countryName = countryCode === 'ca' ? 'Canada' : 'Sri Lanka';
   const locations = getCountryLocations(countryCode);
   const [services, setServices] = useState<PublicServiceDto[]>([]);
@@ -37,7 +38,10 @@ export default function ServicesPage() {
   const [locationMessage, setLocationMessage] = useState('');
 
   const districts = getDistrictsByProvince(provinceId, countryCode);
-  const cities = getCitiesByDistrict(provinceId, districtId, countryCode);
+  const effectiveDistrictId = isCanada ? districts[0]?.id || '' : districtId;
+  const cities = isCanada
+    ? districts.flatMap(district => district.cities)
+    : getCitiesByDistrict(provinceId, districtId, countryCode);
   const categoryFilter = selectedCategories[0] || undefined;
   const categories = Array.from(new Set([...FALLBACK_CATEGORIES, ...selectedCategories, ...services.flatMap(service => service.categories)])).filter(Boolean);
 
@@ -48,7 +52,7 @@ export default function ServicesPage() {
       const { data } = await publicServiceApi.list({
         category: categoryFilter,
         provinceId: provinceId || undefined,
-        districtId: districtId || undefined,
+        districtId: effectiveDistrictId || undefined,
         cityId: cityId || undefined,
         page: pagination.page,
         limit: PAGE_SIZE,
@@ -60,7 +64,7 @@ export default function ServicesPage() {
     } finally {
       setServicesLoading(false);
     }
-  }, [categoryFilter, cityId, districtId, pagination.page, provinceId]);
+  }, [categoryFilter, cityId, effectiveDistrictId, pagination.page, provinceId]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(loadServices, 200);
@@ -157,28 +161,30 @@ export default function ServicesPage() {
                   )}
                 </div>
 
-                <div className="relative">
-                  <select
-                    value={districtId}
-                    onChange={e => {
-                      setPagination(prev => ({ ...prev, page: 1 }));
-                      setDistrictId(e.target.value);
-                      setCityId('');
-                    }}
-                    disabled={!provinceId}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    <option value="">{countryCode === 'ca' ? 'All areas' : 'All districts'}</option>
-                    {districts.map(district => (
-                      <option key={district.id} value={district.id}>{district.name}</option>
-                    ))}
-                  </select>
-                  {districtId && (
-                    <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setDistrictId(''); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Clear district">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                {!isCanada && (
+                  <div className="relative">
+                    <select
+                      value={districtId}
+                      onChange={e => {
+                        setPagination(prev => ({ ...prev, page: 1 }));
+                        setDistrictId(e.target.value);
+                        setCityId('');
+                      }}
+                      disabled={!provinceId}
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      <option value="">All districts</option>
+                      {districts.map(district => (
+                        <option key={district.id} value={district.id}>{district.name}</option>
+                      ))}
+                    </select>
+                    {districtId && (
+                      <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setDistrictId(''); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Clear district">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <div className="relative min-w-0 flex-1">
@@ -188,7 +194,7 @@ export default function ServicesPage() {
                         setPagination(prev => ({ ...prev, page: 1 }));
                         setCityId(e.target.value);
                       }}
-                      disabled={!districtId}
+                      disabled={isCanada ? !provinceId : !districtId}
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                     >
                       <option value="">All cities</option>

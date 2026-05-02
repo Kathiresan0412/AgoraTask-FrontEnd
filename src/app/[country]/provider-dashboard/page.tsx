@@ -50,6 +50,7 @@ export default function ProviderDashboard() {
   const params = useParams();
   const country = params?.country as string || 'lk';
   const countryCode = normalizeCountryCode(country);
+  const isCanada = countryCode === 'ca';
   const locations = getCountryLocations(countryCode);
   const router = useRouter();
   const [section, setSection] = useState<Section>('overview');
@@ -99,7 +100,10 @@ export default function ProviderDashboard() {
   }, [loadServicesData, section, servicesLoaded]);
 
   const providerDistricts = getDistrictsByProvince(formProvinceId, countryCode);
-  const providerCities = getCitiesByDistrict(formProvinceId, formDistrictId, countryCode);
+  const effectiveFormDistrictId = isCanada ? providerDistricts[0]?.id || '' : formDistrictId;
+  const providerCities = isCanada
+    ? providerDistricts.flatMap(district => district.cities)
+    : getCitiesByDistrict(formProvinceId, formDistrictId, countryCode);
 
   const resetServiceForm = () => {
     setFormTitle('');
@@ -145,8 +149,11 @@ export default function ProviderDashboard() {
   };
 
   const createService = async () => {
-    if (!formTitle.trim() || !formServiceTypeId || !formProvinceId || !formDistrictId || !formCityId) {
-      setServicesError('Title, service type, province, district, and city are required.');
+    if (!formTitle.trim() || !formServiceTypeId || !formProvinceId || !effectiveFormDistrictId || !formCityId) {
+      setServicesError(isCanada
+        ? 'Title, service type, province/territory, and city are required.'
+        : 'Title, service type, province, district, and city are required.'
+      );
       return;
     }
 
@@ -160,9 +167,9 @@ export default function ProviderDashboard() {
         price_type: formPriceType,
         duration_mins: formDuration ? Number(formDuration) : null,
         service_area: [
-          getLocationLabel(formProvinceId, formDistrictId, formCityId, countryCode),
+          getLocationLabel(formProvinceId, effectiveFormDistrictId, formCityId, countryCode),
           `province:${formProvinceId}`,
-          `district:${formDistrictId}`,
+          `district:${effectiveFormDistrictId}`,
           `city:${formCityId}`,
         ],
         images: [],
@@ -294,29 +301,31 @@ export default function ProviderDashboard() {
                 </button>
               )}
             </div>
-            <div className="relative">
-              <select value={formDistrictId} onChange={e => { setFormDistrictId(e.target.value); setFormCityId(''); }} disabled={!formProvinceId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                <option value="">{countryCode === 'ca' ? 'Select area' : 'Select district'}</option>
-                {providerDistricts.map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
-              </select>
-              {formDistrictId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormDistrictId('');
-                    setFormCityId('');
-                  }}
-                  className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                  aria-label="Clear district"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            {!isCanada && (
+              <div className="relative">
+                <select value={formDistrictId} onChange={e => { setFormDistrictId(e.target.value); setFormCityId(''); }} disabled={!formProvinceId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                  <option value="">Select district</option>
+                  {providerDistricts.map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
+                </select>
+                {formDistrictId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormDistrictId('');
+                      setFormCityId('');
+                    }}
+                    className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    aria-label="Clear district"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <div className="flex gap-2">
                 <div className="relative min-w-0 flex-1">
-                  <select value={formCityId} onChange={e => setFormCityId(e.target.value)} disabled={!formDistrictId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                  <select value={formCityId} onChange={e => setFormCityId(e.target.value)} disabled={isCanada ? !formProvinceId : !formDistrictId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
                     <option value="">Select city</option>
                     {providerCities.map(city => <option key={city.id} value={city.id}>{city.sub_name ? `${city.name} - ${city.sub_name}` : city.name}</option>)}
                   </select>
