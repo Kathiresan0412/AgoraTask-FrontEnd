@@ -4,8 +4,8 @@ import type { NextRequest } from 'next/server';
 // Match common 2-letter country codes
 const countryRegex = /^\/[a-zA-Z]{2}(\/|$)/;
 
-export async function middleware(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
   // Exclude static files, api routes, Next.js internal routes
   if (
@@ -48,7 +48,7 @@ export async function middleware(request: NextRequest) {
   // Redirect to the URL prefixed with the detected country code
   const url = request.nextUrl.clone();
   url.pathname = `/${countryCode}${pathname}`;
-  
+
   return NextResponse.redirect(url);
 }
 
