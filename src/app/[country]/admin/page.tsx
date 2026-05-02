@@ -225,41 +225,41 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Service types grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {serviceTypes.map(st => (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Parent Types" value={getChildTypes().length.toString()} accent="#3B82F6" />
+        <StatCard label="Total Types" value={serviceTypes.length.toString()} accent="#6366F1" />
+        <StatCard label="Sub Types" value={serviceTypes.filter(type => type.parentId).length.toString()} accent="#10B981" />
+        <StatCard label="Active Types" value={serviceTypes.filter(type => type.active).length.toString()} accent="#F59E0B" />
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h2 className="font-bold text-slate-900 dark:text-white">Hierarchy Example</h2>
+          <p className="text-sm text-slate-500 mt-1">Parent: IT Services → Child: Web Development → Sub-child: Frontend Development / Backend Development</p>
+        </div>
+        <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Parent Service Type</p>
+            <p className="font-bold text-slate-900 dark:text-white">IT Services</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Child Service Types</p>
+            <p className="font-bold text-slate-900 dark:text-white">Web, Mobile App, Cloud Services</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Sub-child Service Types</p>
+            <p className="font-bold text-slate-900 dark:text-white">Frontend, Backend, Android, iOS, AWS, Azure</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Service type hierarchy */}
+      <div className="space-y-4">
+        {getChildTypes().map(st => (
           <div key={st.id}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-sm"
-                  style={{ backgroundColor: st.color + '20', border: `1.5px solid ${st.color}40` }}>
-                  {st.icon}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-900 dark:text-white text-sm">{st.name}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{st.description || '—'}</p>
-                </div>
-              </div>
-              {/* Active pill */}
-              <button onClick={() => toggleActive(st.id)}
-                className={`text-xs font-bold px-2.5 py-1 rounded-full border transition-colors ${st.active
-                    ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
-                  }`}>
-                {st.active ? 'Active' : 'Inactive'}
-              </button>
-            </div>
-            {/* Actions */}
-            <div className="flex gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <button onClick={() => openEdit(st)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                <Edit2 className="w-3.5 h-3.5" /> Edit
-              </button>
-              <button onClick={() => deleteServiceType(st.id)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors ml-auto">
-                <Trash2 className="w-3.5 h-3.5" /> Delete
-              </button>
+            className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+            <div className="space-y-3">
+              {renderServiceTypeNode(st)}
             </div>
           </div>
         ))}
