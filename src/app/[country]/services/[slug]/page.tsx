@@ -3,12 +3,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { publicServiceApi } from '@/lib/api';
 import type { PublicServiceDto } from '@/lib/api';
 import { AlertCircle, CheckCircle, Clock, MapPin, Shield, Star, UserRound } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 const FALLBACK_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=1800&auto=format&fit=crop';
 
@@ -68,6 +69,7 @@ export default function ServiceDetailPage() {
   const params = useParams<{ country?: string; slug?: string }>();
   const country = params.country || 'lk';
   const slug = params.slug || '';
+  const router = useRouter();
   const { user } = useAuth();
   const [service, setService] = useState<PublicServiceDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +78,7 @@ export default function ServiceDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +148,15 @@ export default function ServiceDetailPage() {
     setReviewComment('');
     setReviewRating(5);
     setReviewNotice('Review added on this device. Backend should verify a completed booking before saving permanently.');
+  };
+
+  const handleBookService = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    router.push(`/${country}/dashboard`);
   };
 
   if (isLoading) {
@@ -247,9 +259,9 @@ export default function ServiceDetailPage() {
                 Booked customers can review this service.
               </div>
 
-              <Link href={`/${country}/dashboard`} className="mt-5 block rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700">
+              <button type="button" onClick={handleBookService} className="mt-5 block w-full rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700">
                 Book This Service
-              </Link>
+              </button>
             </div>
           </aside>
         </div>
@@ -311,6 +323,14 @@ export default function ServiceDetailPage() {
         </section>
       </main>
 
+      <AuthRequiredModal
+        country={country}
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLoginSuccess={() => router.push(`/${country}/dashboard`)}
+        title="Login to book this service"
+        message="You need to be logged in before booking an authorized service."
+      />
       <Footer />
     </div>
   );

@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { publicServiceApi } from '@/lib/api';
 import type { PublicServiceDto } from '@/lib/api';
-import { findNearestLocation, getCitiesByDistrict, getDistrictsByProvince, sriLankaLocations } from '@/lib/locations';
+import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, normalizeCountryCode } from '@/lib/locations';
 
 const FALLBACK_CATEGORIES = ['Cleaning', 'Plumbing', 'Electrical', 'Beauty', 'Repairs'];
 const PAGE_SIZE = 8;
@@ -22,6 +22,9 @@ const formatPrice = (service: PublicServiceDto) => {
 export default function ServicesPage() {
   const params = useParams<{ country?: string }>();
   const country = params.country || 'lk';
+  const countryCode = normalizeCountryCode(country);
+  const countryName = countryCode === 'ca' ? 'Canada' : 'Sri Lanka';
+  const locations = getCountryLocations(countryCode);
   const [services, setServices] = useState<PublicServiceDto[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 });
   const [servicesLoading, setServicesLoading] = useState(true);
@@ -33,8 +36,8 @@ export default function ServicesPage() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [locationMessage, setLocationMessage] = useState('');
 
-  const districts = getDistrictsByProvince(provinceId);
-  const cities = getCitiesByDistrict(provinceId, districtId);
+  const districts = getDistrictsByProvince(provinceId, countryCode);
+  const cities = getCitiesByDistrict(provinceId, districtId, countryCode);
   const categoryFilter = selectedCategories[0] || undefined;
   const categories = Array.from(new Set([...FALLBACK_CATEGORIES, ...selectedCategories, ...services.flatMap(service => service.categories)])).filter(Boolean);
 
@@ -90,7 +93,7 @@ export default function ServicesPage() {
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       position => {
-        const nearest = findNearestLocation(position.coords.latitude, position.coords.longitude);
+        const nearest = findNearestLocation(position.coords.latitude, position.coords.longitude, countryCode);
         if (nearest) {
           setPagination(prev => ({ ...prev, page: 1 }));
           setProvinceId(nearest.provinceId);
@@ -117,7 +120,7 @@ export default function ServicesPage() {
       <div className="bg-indigo-600 py-16 px-4">
         <div className="container mx-auto max-w-6xl">
           <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Find Services</h1>
-          <p className="text-indigo-100 text-lg max-w-2xl">Browse trusted professionals by service category and exact Sri Lankan location.</p>
+          <p className="text-indigo-100 text-lg max-w-2xl">Browse trusted professionals by service category and exact {countryName} location.</p>
         </div>
       </div>
 
@@ -142,8 +145,8 @@ export default function ServicesPage() {
                     }}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">All provinces</option>
-                    {sriLankaLocations.map(province => (
+                    <option value="">{countryCode === 'ca' ? 'All provinces/territories' : 'All provinces'}</option>
+                    {locations.map(province => (
                       <option key={province.id} value={province.id}>{province.name}</option>
                     ))}
                   </select>
@@ -165,7 +168,7 @@ export default function ServicesPage() {
                     disabled={!provinceId}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                   >
-                    <option value="">All districts</option>
+                    <option value="">{countryCode === 'ca' ? 'All areas' : 'All districts'}</option>
                     {districts.map(district => (
                       <option key={district.id} value={district.id}>{district.name}</option>
                     ))}

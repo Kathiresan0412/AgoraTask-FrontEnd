@@ -13,7 +13,7 @@ import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { providerApi, serviceTypeApi } from '@/lib/api';
 import type { ProviderServiceDto, ServiceTypeDto } from '@/lib/api';
-import { findNearestLocation, getCitiesByDistrict, getDistrictsByProvince, getLocationLabel, sriLankaLocations } from '@/lib/locations';
+import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, getLocationLabel, normalizeCountryCode } from '@/lib/locations';
 
 type Section = 'overview' | 'services' | 'bookings' | 'messages' | 'earnings' | 'settings';
 
@@ -49,6 +49,8 @@ export default function ProviderDashboard() {
   const { unreadCount } = useMessages();
   const params = useParams();
   const country = params?.country as string || 'lk';
+  const countryCode = normalizeCountryCode(country);
+  const locations = getCountryLocations(countryCode);
   const router = useRouter();
   const [section, setSection] = useState<Section>('overview');
   const [services, setServices] = useState<ProviderServiceDto[]>([]);
@@ -96,8 +98,8 @@ export default function ProviderDashboard() {
     }
   }, [loadServicesData, section, servicesLoaded]);
 
-  const providerDistricts = getDistrictsByProvince(formProvinceId);
-  const providerCities = getCitiesByDistrict(formProvinceId, formDistrictId);
+  const providerDistricts = getDistrictsByProvince(formProvinceId, countryCode);
+  const providerCities = getCitiesByDistrict(formProvinceId, formDistrictId, countryCode);
 
   const resetServiceForm = () => {
     setFormTitle('');
@@ -123,7 +125,7 @@ export default function ProviderDashboard() {
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       position => {
-        const nearest = findNearestLocation(position.coords.latitude, position.coords.longitude);
+        const nearest = findNearestLocation(position.coords.latitude, position.coords.longitude, countryCode);
         if (nearest) {
           setFormProvinceId(nearest.provinceId);
           setFormDistrictId(nearest.districtId);
@@ -158,7 +160,7 @@ export default function ProviderDashboard() {
         price_type: formPriceType,
         duration_mins: formDuration ? Number(formDuration) : null,
         service_area: [
-          getLocationLabel(formProvinceId, formDistrictId, formCityId),
+          getLocationLabel(formProvinceId, formDistrictId, formCityId, countryCode),
           `province:${formProvinceId}`,
           `district:${formDistrictId}`,
           `city:${formCityId}`,
@@ -274,8 +276,8 @@ export default function ProviderDashboard() {
             <input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="1" placeholder="Duration minutes" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
             <div className="relative">
               <select value={formProvinceId} onChange={e => { setFormProvinceId(e.target.value); setFormDistrictId(''); setFormCityId(''); }} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="">Select province</option>
-                {sriLankaLocations.map(province => <option key={province.id} value={province.id}>{province.name}</option>)}
+                <option value="">{countryCode === 'ca' ? 'Select province/territory' : 'Select province'}</option>
+                {locations.map(province => <option key={province.id} value={province.id}>{province.name}</option>)}
               </select>
               {formProvinceId && (
                 <button
@@ -294,7 +296,7 @@ export default function ProviderDashboard() {
             </div>
             <div className="relative">
               <select value={formDistrictId} onChange={e => { setFormDistrictId(e.target.value); setFormCityId(''); }} disabled={!formProvinceId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                <option value="">Select district</option>
+                <option value="">{countryCode === 'ca' ? 'Select area' : 'Select district'}</option>
                 {providerDistricts.map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
               </select>
               {formDistrictId && (

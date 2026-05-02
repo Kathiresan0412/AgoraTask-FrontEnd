@@ -3,9 +3,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { AlertCircle, CheckCircle, Clock, Mail, MapPin, MessageSquare, Send, Shield, Star } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { publicServiceApi, PublicProviderDto, PublicServiceDto } from '@/lib/api';
@@ -62,6 +63,7 @@ export default function ProviderProfilePage() {
   const params = useParams<{ country?: string; slug?: string }>();
   const country = params.country || 'lk';
   const slug = params.slug || '';
+  const router = useRouter();
   const { user } = useAuth();
   const { sendMessage } = useMessages();
   const [provider, setProvider] = useState<PublicProviderDto | null>(null);
@@ -74,6 +76,7 @@ export default function ProviderProfilePage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const messageBoxRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -117,6 +120,15 @@ export default function ProviderProfilePage() {
   const focusMessage = () => {
     messageBoxRef.current?.focus();
     messageBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const handleBookNow = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    router.push(`/${country}/dashboard`);
   };
 
   const handleSendMessage = async () => {
@@ -265,9 +277,9 @@ export default function ProviderProfilePage() {
             </div>
 
             <div className="w-full md:w-auto flex flex-col gap-3">
-              <Link href={`/${country}/dashboard`} className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/30 active:scale-95 text-center block">
+              <button type="button" onClick={handleBookNow} className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/30 active:scale-95 text-center block">
                 Book Now
-              </Link>
+              </button>
               <button onClick={focusMessage} className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 px-8 py-3.5 rounded-xl font-bold transition-all active:scale-95">
                 <MessageSquare className="w-4 h-4" />
                 Message
@@ -406,6 +418,14 @@ export default function ProviderProfilePage() {
           </section>
         </div>
       </div>
+      <AuthRequiredModal
+        country={country}
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLoginSuccess={() => router.push(`/${country}/dashboard`)}
+        title="Login to book this service"
+        message="You need to be logged in before booking an authorized service."
+      />
       <Footer />
     </div>
   );

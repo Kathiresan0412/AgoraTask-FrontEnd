@@ -138,19 +138,21 @@ export function LoginButton() {
 
   // ── Guest state ────────────────────────────────────────────────
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-0">
       <Link
         href={`/${country}/login`}
-        className="text-sm font-semibold text-neutral-600 dark:text-neutral-300 hover:text-[#171717] dark:hover:text-white transition-colors hidden sm:block"
+        // className="text-sm font-semibold text-neutral-600 dark:text-neutral-300 hover:text-[#171717] dark:hover:text-white transition-colors hidden sm:block"
+        className="bg-[#171717] dark:bg-white text-white dark:text-[#171717] hover:bg-black dark:hover:bg-neutral-200 px-5 py-2.5 rounded-full text-sm font-semibold transition-all shadow-sm active:scale-95"
+
       >
         {t('common.login')}
       </Link>
-      <Link
+      {/* <Link
         href={`/${country}/register`}
         className="bg-[#171717] dark:bg-white text-white dark:text-[#171717] hover:bg-black dark:hover:bg-neutral-200 px-5 py-2.5 rounded-full text-sm font-semibold transition-all shadow-sm active:scale-95"
       >
         {t('common.register')}
-      </Link>
+      </Link> */}
     </div>
   );
 }

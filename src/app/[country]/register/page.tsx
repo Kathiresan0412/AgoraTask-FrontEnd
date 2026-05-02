@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Zap, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,10 +22,21 @@ const registerSchema = z.object({
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+const getAuthErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { error?: string; errors?: Array<{ msg?: string }> } } }).response;
+    return response?.data?.error || response?.data?.errors?.[0]?.msg || fallback;
+  }
+
+  return fallback;
+};
+
 export default function RegisterPage() {
   const params = useParams();
   const country = params.country as string || 'lk';
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
   
   const [role, setRole] = useState<'customer' | 'provider'>('customer');
   const [registerError, setRegisterError] = useState('');
@@ -42,6 +53,12 @@ export default function RegisterPage() {
     }
   });
 
+  const getSafeReturnTo = () => {
+    if (!returnTo || returnTo.startsWith('//')) return '';
+    if (returnTo === `/${country}` || returnTo.startsWith(`/${country}/`)) return returnTo;
+    return '';
+  };
+
   const onSubmit = async (data: RegisterFormValues) => {
     setRegisterError('');
 
@@ -53,15 +70,16 @@ export default function RegisterPage() {
         role,
       });
 
-      // Redirect based on role after successful registration
+      const safeReturnTo = getSafeReturnTo();
+      if (safeReturnTo) {
+        router.push(safeReturnTo);
+        return;
+      }
+
       const redirectPath = role === 'provider' ? 'provider-dashboard' : 'dashboard';
       router.push(`/${country}/${redirectPath}`);
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.error ||
-        err?.response?.data?.errors?.[0]?.msg ||
-        'Registration failed. Please try again.';
-      setRegisterError(message);
+    } catch (error) {
+      setRegisterError(getAuthErrorMessage(error, 'Registration failed. Please try again.'));
     }
   };
 
@@ -81,7 +99,7 @@ export default function RegisterPage() {
         </h2>
         <p className="mt-2 text-center text-sm text-neutral-500 dark:text-neutral-400">
           {t('register.alreadyHaveAccount')}
-          <Link href={`/${country}/login`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all ml-1">
+          <Link href={`/${country}/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all ml-1">
             {t('register.signInHere')}
           </Link>
         </p>

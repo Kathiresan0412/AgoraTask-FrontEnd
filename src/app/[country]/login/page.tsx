@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Zap, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,10 +18,21 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+const getAuthErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { error?: string; errors?: Array<{ msg?: string }> } } }).response;
+    return response?.data?.error || response?.data?.errors?.[0]?.msg || fallback;
+  }
+
+  return fallback;
+};
+
 export default function LoginPage() {
   const params = useParams();
   const country = params.country as string || 'lk';
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
 
   const [loginError, setLoginError] = useState('');
   const { login, isLoading } = useAuth();
@@ -32,11 +43,23 @@ export default function LoginPage() {
     defaultValues: { email: '', password: '', rememberMe: false },
   });
 
+  const getSafeReturnTo = () => {
+    if (!returnTo || returnTo.startsWith('//')) return '';
+    if (returnTo === `/${country}` || returnTo.startsWith(`/${country}/`)) return returnTo;
+    return '';
+  };
+
   const onSubmit = async (data: LoginFormValues) => {
     setLoginError('');
 
     try {
       await login({ email: data.email, password: data.password });
+
+      const safeReturnTo = getSafeReturnTo();
+      if (safeReturnTo) {
+        router.push(safeReturnTo);
+        return;
+      }
 
       // After successful login, read user from localStorage to determine role
       const storedUser = localStorage.getItem('agoratask_user');
@@ -47,12 +70,8 @@ export default function LoginPage() {
           user.role === 'provider' ? 'provider-dashboard' : 'dashboard';
         router.push(`/${country}/${redirectPath}`);
       }
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.error ||
-        err?.response?.data?.errors?.[0]?.msg ||
-        'Invalid email or password.';
-      setLoginError(message);
+    } catch (error) {
+      setLoginError(getAuthErrorMessage(error, 'Invalid email or password.'));
     }
   };
 
@@ -72,7 +91,7 @@ export default function LoginPage() {
         </h2>
         <p className="mt-2 text-center text-sm text-neutral-500 dark:text-neutral-400">
           {t('login.noAccount')}
-          <Link href={`/${country}/register`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all ml-1">
+          <Link href={`/${country}/register${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`} className="font-semibold text-[#171717] dark:text-white hover:underline transition-all ml-1">
             {t('login.signUpHere')}
           </Link>
         </p>
