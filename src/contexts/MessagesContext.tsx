@@ -1,126 +1,164 @@
 "use client";
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import { messageApi } from '@/lib/api';
+import type { ConversationDto, MessageDto } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface Message {
   id: string;
-  from: string;       // email of sender
+  conversationId: string;
+  fromUserId: string;
+  toUserId: string;
+  from: string;
   fromName: string;
-  to: string;         // email of recipient
+  to: string;
+  toName: string;
   text: string;
   timestamp: Date;
   read: boolean;
 }
 
-interface Conversation {
-  id: string;          // sorted pair e.g. "admin@gmail.com|provider@gmail.com"
+export interface Conversation {
+  id: string;
+  participantIds: string[];
   participants: string[];
+  participantNames: string[];
   messages: Message[];
 }
 
 interface MessagesContextType {
   conversations: Conversation[];
-  sendMessage: (from: string, fromName: string, to: string, text: string) => void;
+  isLoading: boolean;
+  error: string;
+  refreshConversations: () => Promise<void>;
+  sendMessage: (from: string, fromName: string, to: string, text: string) => Promise<void>;
+  editMessage: (messageId: string, text: string) => Promise<void>;
+  deleteMessage: (messageId: string) => Promise<void>;
   getConversation: (emailA: string, emailB: string) => Conversation | undefined;
   getInbox: (email: string) => Conversation[];
-  markRead: (convId: string, readerEmail: string) => void;
+  markRead: (convId: string, readerEmail: string) => Promise<void>;
   unreadCount: (email: string) => number;
 }
 
 const MessagesContext = createContext<MessagesContextType | undefined>(undefined);
 
-// Seed conversations
-const seed = (): Conversation[] => {
-  const make = (a: string, aName: string, b: string, bName: string, msgs: { from: string; fromName: string; text: string }[]) => {
-    const id = [a, b].sort().join('|');
-    return {
-      id,
-      participants: [a, b],
-      messages: msgs.map((m, i) => ({
-        id: `${id}-${i}`,
-        from: m.from,
-        fromName: m.fromName,
-        to: m.from === a ? b : a,
-        text: m.text,
-        timestamp: new Date(Date.now() - (msgs.length - i) * 60000 * 5),
-        read: true,
-      })),
-    };
-  };
+const mapMessage = (message: MessageDto): Message => ({
+  ...message,
+  timestamp: new Date(message.timestamp),
+});
 
-  return [
-    make(
-      'customer@gmail.com', 'Customer User',
-      'provider@gmail.com', 'Provider User',
-      [
-        { from: 'customer@gmail.com', fromName: 'Customer User', text: 'Hi, I need a deep clean for my home.' },
-        { from: 'provider@gmail.com', fromName: 'Provider User', text: 'Sure! When would you like to schedule it?' },
-        { from: 'customer@gmail.com', fromName: 'Customer User', text: 'This Saturday morning works!' },
-      ]
-    ),
-    make(
-      'admin@gmail.com', 'Admin User',
-      'provider@gmail.com', 'Provider User',
-      [
-        { from: 'admin@gmail.com', fromName: 'Admin User', text: 'Your account has been verified. Welcome!' },
-        { from: 'provider@gmail.com', fromName: 'Provider User', text: 'Thank you! Excited to be on board.' },
-      ]
-    ),
-    make(
-      'admin@gmail.com', 'Admin User',
-      'customer@gmail.com', 'Customer User',
-      [
-        { from: 'admin@gmail.com', fromName: 'Admin User', text: 'Welcome to AgoraTask! Let us know if you need help.' },
-      ]
-    ),
-  ];
-};
+const mapConversation = (conversation: ConversationDto): Conversation => ({
+  ...conversation,
+  messages: conversation.messages.map(mapMessage),
+});
 
 export function MessagesProvider({ children }: { children: React.ReactNode }) {
-  const [conversations, setConversations] = useState<Conversation[]>(seed());
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const refreshConversations = useCallback(async () => {
+    if (!user) {
+      setConversations([]);
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    try {
+      const { data } = await messageApi.listConversations();
+      setConversations(data.map(mapConversation));
+    } catch {
+      setError('Could not load messages.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   const getConvId = (a: string, b: string) => [a, b].sort().join('|');
 
-  const sendMessage = (from: string, fromName: string, to: string, text: string) => {
-    const id = getConvId(from, to);
-    const msg: Message = {
-      id: `${id}-${Date.now()}`,
-      from, fromName, to, text,
-      timestamp: new Date(),
-      read: false,
-    };
+  const sendMessage = useCallback(async (_from: string, _fromName: string, to: string, text: string) => {
+    const { data } = await messageApi.send({ toEmail: to, text });
+    const message = mapMessage(data);
+
     setConversations(prev => {
-      const existing = prev.find(c => c.id === id);
+      const existing = prev.find(conversation => conversation.id === message.conversationId);
       if (existing) {
-        return prev.map(c => c.id === id ? { ...c, messages: [...c.messages, msg] } : c);
+        return prev.map(conversation => (
+          conversation.id === message.conversationId
+            ? { ...conversation, messages: [...conversation.messages, message] }
+            : conversation
+        ));
       }
-      return [...prev, { id, participants: [from, to], messages: [msg] }];
+
+      return [
+        {
+          id: message.conversationId,
+          participantIds: [message.fromUserId, message.toUserId],
+          participants: [message.from, message.to],
+          participantNames: [message.fromName, message.toName],
+          messages: [message],
+        },
+        ...prev,
+      ];
     });
-  };
+  }, []);
+
+  const editMessage = useCallback(async (messageId: string, text: string) => {
+    const { data } = await messageApi.update(messageId, text);
+    const updated = mapMessage(data);
+
+    setConversations(prev => prev.map(conversation => ({
+      ...conversation,
+      messages: conversation.messages.map(message => (
+        message.id === messageId ? updated : message
+      )),
+    })));
+  }, []);
+
+  const deleteMessage = useCallback(async (messageId: string) => {
+    await messageApi.delete(messageId);
+
+    setConversations(prev => prev
+      .map(conversation => ({
+        ...conversation,
+        messages: conversation.messages.filter(message => message.id !== messageId),
+      }))
+      .filter(conversation => conversation.messages.length > 0)
+    );
+  }, []);
 
   const getConversation = (a: string, b: string) =>
-    conversations.find(c => c.id === getConvId(a, b));
+    conversations.find(conversation => conversation.participants.slice().sort().join('|') === getConvId(a, b));
 
   const getInbox = (email: string) =>
-    conversations.filter(c => c.participants.includes(email));
+    conversations.filter(conversation => conversation.participants.includes(email));
 
-  const markRead = (convId: string, readerEmail: string) => {
+  const markRead = useCallback(async (convId: string, readerEmail: string) => {
     setConversations(prev =>
-      prev.map(c =>
-        c.id === convId
-          ? { ...c, messages: c.messages.map(m => m.to === readerEmail ? { ...m, read: true } : m) }
-          : c
+      prev.map(conversation =>
+        conversation.id === convId
+          ? { ...conversation, messages: conversation.messages.map(message => message.to === readerEmail ? { ...message, read: true } : message) }
+          : conversation
       )
     );
-  };
+
+    try {
+      await messageApi.markRead(convId);
+    } catch {
+      refreshConversations();
+    }
+  }, [refreshConversations]);
 
   const unreadCount = (email: string) =>
-    conversations.reduce((sum, c) =>
-      sum + c.messages.filter(m => m.to === email && !m.read).length, 0
+    conversations.reduce((sum, conversation) =>
+      sum + conversation.messages.filter(message => message.to === email && !message.read).length, 0
     );
 
   return (
-    <MessagesContext.Provider value={{ conversations, sendMessage, getConversation, getInbox, markRead, unreadCount }}>
+    <MessagesContext.Provider value={{ conversations, isLoading, error, refreshConversations, sendMessage, editMessage, deleteMessage, getConversation, getInbox, markRead, unreadCount }}>
       {children}
     </MessagesContext.Provider>
   );

@@ -105,6 +105,115 @@ export interface AdminProviderFilters {
   location?: string;
 }
 
+export interface MessageDto {
+  id: string;
+  conversationId: string;
+  fromUserId: string;
+  toUserId: string;
+  from: string;
+  fromName: string;
+  to: string;
+  toName: string;
+  text: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface ConversationDto {
+  id: string;
+  participantIds: string[];
+  participants: string[];
+  participantNames: string[];
+  messages: MessageDto[];
+}
+
+export interface ProviderServiceDto {
+  id: string;
+  title: string;
+  description: string | null;
+  base_price: number | null;
+  price_type: 'fixed' | 'hourly' | 'quote';
+  duration_mins: number | null;
+  service_area: string[] | null;
+  images: string[] | null;
+  status: 'draft' | 'active' | 'paused' | 'pending_review' | 'rejected';
+  created_at: string;
+  updated_at?: string;
+  service_types: ServiceTypeDto[];
+}
+
+export interface ProviderServicePayload {
+  title: string;
+  description?: string;
+  base_price?: number | null;
+  price_type?: 'fixed' | 'hourly' | 'quote';
+  duration_mins?: number | null;
+  service_area?: string[];
+  images?: string[];
+  status?: 'draft' | 'active' | 'paused' | 'pending_review' | 'rejected';
+  service_type_ids: string[];
+}
+
+export interface PublicServiceDto {
+  id: string;
+  title: string;
+  description: string | null;
+  basePrice: number | null;
+  priceType: 'fixed' | 'hourly' | 'quote';
+  durationMins: number | null;
+  serviceArea: string[];
+  location: string;
+  images: string[];
+  status: string;
+  createdAt: string;
+  provider: {
+    id: string;
+    name: string;
+    slug: string;
+    email: string;
+    profileImage: string;
+  };
+  serviceTypes: ServiceTypeDto[];
+  categories: string[];
+}
+
+export interface PublicProviderDto {
+  id: string;
+  userId: string;
+  slug: string;
+  name: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  description: string;
+  category: string;
+  location: string;
+  status: string;
+  profileImage: string;
+  coverImage: string;
+  services: PublicServiceDto[];
+  serviceCategories: string[];
+}
+
+export interface PublicServiceFilters {
+  category?: string;
+  provinceId?: string;
+  districtId?: string;
+  cityId?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export const authApi = {
   login: (data: LoginPayload) =>
     api.post<AuthResponse>('/auth/login', data),
@@ -142,6 +251,45 @@ export const adminApi = {
 
   rejectProvider: (id: string) =>
     api.post<{ success: boolean; message: string }>(`/admin/providers/${id}/reject`),
+};
+
+export const messageApi = {
+  listConversations: () =>
+    api.get<ConversationDto[]>('/messages/conversations'),
+
+  getMessages: (conversationId: string) =>
+    api.get<MessageDto[]>(`/messages/conversations/${conversationId}`),
+
+  send: (data: { toUserId?: string; toEmail?: string; text: string }) =>
+    api.post<MessageDto>('/messages', data),
+
+  update: (messageId: string, text: string) =>
+    api.put<MessageDto>(`/messages/${messageId}`, { text }),
+
+  delete: (messageId: string) =>
+    api.delete<{ success: boolean }>(`/messages/${messageId}`),
+
+  markRead: (conversationId: string) =>
+    api.patch<{ success: boolean }>(`/messages/conversations/${conversationId}/read`),
+};
+
+export const providerApi = {
+  listServices: () =>
+    api.get<ProviderServiceDto[]>('/provider/services'),
+
+  createService: (data: ProviderServicePayload) =>
+    api.post<ProviderServiceDto>('/provider/services', data),
+};
+
+export const publicServiceApi = {
+  list: (filters: PublicServiceFilters = {}) =>
+    api.get<PaginatedResponse<PublicServiceDto>>('/v1/services', { params: filters }),
+
+  getProvider: (slug: string) =>
+    api.get<PublicProviderDto>(`/v1/services/providers/${slug}`),
+
+  getService: (slug: string) =>
+    api.get<PublicServiceDto>(`/v1/services/${slug}`),
 };
 
 export default api;

@@ -1,21 +1,25 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Briefcase, Calendar, MessageSquare, DollarSign,
-  Settings, Star, CheckCircle, Clock, Zap, User,
-  LogOut, ChevronRight, BarChart2
+  Settings, Star, CheckCircle, Clock, Zap,
+  LogOut, ChevronRight, BarChart2, Plus, MapPin, Save, Crosshair, X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { providerApi, serviceTypeApi } from '@/lib/api';
+import type { ProviderServiceDto, ServiceTypeDto } from '@/lib/api';
+import { findNearestLocation, getCitiesByDistrict, getDistrictsByProvince, getLocationLabel, sriLankaLocations } from '@/lib/locations';
 
-type Section = 'overview' | 'bookings' | 'messages' | 'earnings' | 'settings';
+type Section = 'overview' | 'services' | 'bookings' | 'messages' | 'earnings' | 'settings';
 
 const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
+  { id: 'services', label: 'Services', icon: Briefcase },
   { id: 'bookings', label: 'Bookings', icon: Calendar, badge: 3 },
   { id: 'messages', label: 'Messages', icon: MessageSquare, badge: 1 },
   { id: 'earnings', label: 'Earnings', icon: DollarSign },
@@ -47,8 +51,132 @@ export default function ProviderDashboard() {
   const country = params?.country as string || 'lk';
   const router = useRouter();
   const [section, setSection] = useState<Section>('overview');
+  const [services, setServices] = useState<ProviderServiceDto[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceTypeDto[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesLoaded, setServicesLoaded] = useState(false);
+  const [servicesError, setServicesError] = useState('');
+  const [showServiceForm, setShowServiceForm] = useState(false);
+  const [savingService, setSavingService] = useState(false);
+  const [formTitle, setFormTitle] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formPrice, setFormPrice] = useState('');
+  const [formPriceType, setFormPriceType] = useState<'fixed' | 'hourly' | 'quote'>('fixed');
+  const [formDuration, setFormDuration] = useState('');
+  const [formServiceTypeId, setFormServiceTypeId] = useState('');
+  const [formProvinceId, setFormProvinceId] = useState('');
+  const [formDistrictId, setFormDistrictId] = useState('');
+  const [formCityId, setFormCityId] = useState('');
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [locationMessage, setLocationMessage] = useState('');
 
   const handleLogout = () => { logout(); router.push(`/${country}/login`); };
+
+  const loadServicesData = useCallback(async () => {
+    setServicesLoading(true);
+    setServicesError('');
+    try {
+      const [servicesResponse, typesResponse] = await Promise.all([
+        providerApi.listServices(),
+        serviceTypeApi.list(),
+      ]);
+      setServices(servicesResponse.data);
+      setServiceTypes(typesResponse.data.filter(type => type.active));
+      setServicesLoaded(true);
+    } catch {
+      setServicesError('Could not load your services.');
+    } finally {
+      setServicesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section === 'services' && !servicesLoaded) {
+      loadServicesData();
+    }
+  }, [loadServicesData, section, servicesLoaded]);
+
+  const providerDistricts = getDistrictsByProvince(formProvinceId);
+  const providerCities = getCitiesByDistrict(formProvinceId, formDistrictId);
+
+  const resetServiceForm = () => {
+    setFormTitle('');
+    setFormDescription('');
+    setFormPrice('');
+    setFormPriceType('fixed');
+    setFormDuration('');
+    setFormServiceTypeId('');
+    setFormProvinceId('');
+    setFormDistrictId('');
+    setFormCityId('');
+    setLocationMessage('');
+  };
+
+  const useCurrentLocation = () => {
+    setLocationMessage('');
+
+    if (!navigator.geolocation) {
+      setLocationMessage('Location is not supported by this browser.');
+      return;
+    }
+
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const nearest = findNearestLocation(position.coords.latitude, position.coords.longitude);
+        if (nearest) {
+          setFormProvinceId(nearest.provinceId);
+          setFormDistrictId(nearest.districtId);
+          setFormCityId(nearest.cityId);
+          setLocationMessage('Service city set from your location.');
+        } else {
+          setLocationMessage('Could not match your location to a city.');
+        }
+        setDetectingLocation(false);
+      },
+      () => {
+        setLocationMessage('Allow location access to set your city.');
+        setDetectingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
+  const createService = async () => {
+    if (!formTitle.trim() || !formServiceTypeId || !formProvinceId || !formDistrictId || !formCityId) {
+      setServicesError('Title, service type, province, district, and city are required.');
+      return;
+    }
+
+    setSavingService(true);
+    setServicesError('');
+    try {
+      const { data } = await providerApi.createService({
+        title: formTitle.trim(),
+        description: formDescription.trim(),
+        base_price: formPrice ? Number(formPrice) : null,
+        price_type: formPriceType,
+        duration_mins: formDuration ? Number(formDuration) : null,
+        service_area: [
+          getLocationLabel(formProvinceId, formDistrictId, formCityId),
+          `province:${formProvinceId}`,
+          `district:${formDistrictId}`,
+          `city:${formCityId}`,
+        ],
+        images: [],
+        status: 'active',
+        service_type_ids: [formServiceTypeId],
+      });
+
+      setServices(prev => [data, ...prev]);
+      resetServiceForm();
+      setShowServiceForm(false);
+    } catch {
+      setServicesError('Could not create this service.');
+    } finally {
+      setSavingService(false);
+    }
+  };
 
   // ── Section content ──────────────────────────────────────────────
   const renderOverview = () => (
@@ -106,8 +234,156 @@ export default function ProviderDashboard() {
     );
   };
 
+  const renderServices = () => (
+    <div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">My Services</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Create services and select your exact service city.</p>
+        </div>
+        <button
+          onClick={() => setShowServiceForm(prev => !prev)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Add Service
+        </button>
+      </div>
+
+      {servicesError && (
+        <div className="mb-4 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          {servicesError}
+        </div>
+      )}
+
+      {showServiceForm && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-6">
+          <h2 className="font-bold text-slate-900 dark:text-white mb-4">Create Service</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Service title" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <select value={formServiceTypeId} onChange={e => setFormServiceTypeId(e.target.value)} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">Select service type</option>
+              {serviceTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+            </select>
+            <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Description" className="md:col-span-2 min-h-24 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" min="0" placeholder="Base price" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <select value={formPriceType} onChange={e => setFormPriceType(e.target.value as 'fixed' | 'hourly' | 'quote')} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="fixed">Fixed price</option>
+              <option value="hourly">Hourly</option>
+              <option value="quote">Quote</option>
+            </select>
+            <input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="1" placeholder="Duration minutes" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <div className="relative">
+              <select value={formProvinceId} onChange={e => { setFormProvinceId(e.target.value); setFormDistrictId(''); setFormCityId(''); }} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="">Select province</option>
+                {sriLankaLocations.map(province => <option key={province.id} value={province.id}>{province.name}</option>)}
+              </select>
+              {formProvinceId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormProvinceId('');
+                    setFormDistrictId('');
+                    setFormCityId('');
+                  }}
+                  className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  aria-label="Clear province"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <select value={formDistrictId} onChange={e => { setFormDistrictId(e.target.value); setFormCityId(''); }} disabled={!formProvinceId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                <option value="">Select district</option>
+                {providerDistricts.map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
+              </select>
+              {formDistrictId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormDistrictId('');
+                    setFormCityId('');
+                  }}
+                  className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  aria-label="Clear district"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <select value={formCityId} onChange={e => setFormCityId(e.target.value)} disabled={!formDistrictId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+                    <option value="">Select city</option>
+                    {providerCities.map(city => <option key={city.id} value={city.id}>{city.sub_name ? `${city.name} - ${city.sub_name}` : city.name}</option>)}
+                  </select>
+                  {formCityId && (
+                    <button
+                      type="button"
+                      onClick={() => setFormCityId('')}
+                      className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      aria-label="Clear city"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={useCurrentLocation}
+                  disabled={detectingLocation}
+                  className="w-11 h-11 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 transition-colors flex items-center justify-center"
+                  aria-label="Use my current location"
+                  title="Use my current location"
+                >
+                  <Crosshair className={`w-4 h-4 ${detectingLocation ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              {locationMessage && <p className="text-xs text-slate-500">{locationMessage}</p>}
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={createService} disabled={savingService} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              <Save className="w-4 h-4" /> {savingService ? 'Saving...' : 'Create Service'}
+            </button>
+            <button onClick={() => { resetServiceForm(); setShowServiceForm(false); }} disabled={savingService} className="rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {servicesLoading && <p className="text-slate-500">Loading services...</p>}
+        {!servicesLoading && services.map(service => (
+          <div key={service.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white">{service.title}</h3>
+                <p className="text-sm text-slate-500 mt-1">{service.description || 'No description added.'}</p>
+              </div>
+              <span className="rounded-full bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">{service.status}</span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-500">
+              <span>Rs. {service.base_price || 0} · {service.price_type}</span>
+              {service.service_area?.[0] && <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {service.service_area[0]}</span>}
+            </div>
+          </div>
+        ))}
+        {!servicesLoading && services.length === 0 && (
+          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 flex flex-col items-center text-slate-400">
+            <Briefcase className="w-10 h-10 mb-3 opacity-30" />
+            <p className="font-medium">No services yet.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const CONTENT: Record<Section, React.ReactNode> = {
     overview: renderOverview(),
+    services: renderServices(),
     bookings: renderPlaceholder('Bookings', Calendar),
     messages: <MessagesPanel />,
     earnings: renderPlaceholder('Earnings', DollarSign),

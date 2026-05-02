@@ -21,7 +21,6 @@ const CATEGORIES = [
 interface BotMsg { role: 'bot' | 'user'; text: string; chips?: string[] }
 
 const PROVIDER_EMAIL = 'provider@gmail.com';
-const PROVIDER_NAME  = 'Provider User';
 
 export default function CustomerAssistant() {
   const { user } = useAuth();
@@ -31,20 +30,13 @@ export default function CustomerAssistant() {
   const [open, setOpen] = useState(false);
   const [tab, setTab]   = useState<'assistant' | 'inbox'>('assistant');
   const [input, setInput] = useState('');
-  const [chat, setChat] = useState<BotMsg[]>([]);
-
-  // Initialize welcome message dynamically on load or language change to support t()
-  useEffect(() => {
-    if (chat.length === 0) {
-      setChat([
-        {
-          role: 'bot',
-          text: t('assistant.greeting'),
-          chips: CATEGORIES.map(c => `${c.emoji} ${c.label === 'Search by name' ? t('assistant.searchByName') : c.label}`),
-        },
-      ]);
-    }
-  }, [t, chat.length]);
+  const [chat, setChat] = useState<BotMsg[]>(() => [
+    {
+      role: 'bot',
+      text: t('assistant.greeting'),
+      chips: CATEGORIES.map(c => `${c.emoji} ${c.label === 'Search by name' ? t('assistant.searchByName') : c.label}`),
+    },
+  ]);
   const [awaitingCategory, setAwaitingCategory] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -76,9 +68,9 @@ export default function CustomerAssistant() {
 
   const handleActionChip = (chip: string) => {
     addMsg('user', chip);
-    setTimeout(() => {
+    setTimeout(async () => {
       if (chip.includes('Message a provider')) {
-        sendMessage(user.email, user.name, PROVIDER_EMAIL, 'Hi! I saw your profile and I\'m interested in your services.');
+        await sendMessage(user.email, user.name, PROVIDER_EMAIL, 'Hi! I saw your profile and I\'m interested in your services.');
         addMsg('bot', "✅ I've sent a message to a top provider on your behalf! Switch to your **Inbox** tab to continue the conversation.");
       } else if (chip.includes('Book now')) {
         addMsg('bot', "🗓️ Please visit the Services page to pick an available slot. I'll remind you 24 hours before your booking!");
@@ -235,7 +227,7 @@ export default function CustomerAssistant() {
 // ── Inline Inbox (customer → provider / admin) ───────────────────
 function InboxTab() {
   const { user } = useAuth();
-  const { getInbox, sendMessage, markRead } = useMessages();
+  const { getInbox, sendMessage, markRead, refreshConversations } = useMessages();
   const { t } = useLanguage();
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -244,13 +236,20 @@ function InboxTab() {
   const inbox = user ? getInbox(user.email) : [];
   const conv  = inbox.find(c => c.id === activeConv);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [conv?.messages.length]);
-  useEffect(() => { if (conv && user) markRead(conv.id, user.email); }, [activeConv]);
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
 
-  const send = () => {
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [conv?.messages.length]);
+  useEffect(() => {
+    const unread = conv && user ? conv.messages.some(m => m.to === user.email && !m.read) : false;
+    if (conv && user && unread) markRead(conv.id, user.email);
+  }, [conv, markRead, user]);
+
+  const send = async () => {
     if (!replyText.trim() || !conv || !user) return;
     const to = conv.participants.find(p => p !== user.email)!;
-    sendMessage(user.email, user.name, to, replyText.trim());
+    await sendMessage(user.email, user.name, to, replyText.trim());
     setReplyText('');
   };
 
