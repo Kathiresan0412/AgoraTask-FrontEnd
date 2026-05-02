@@ -9,7 +9,7 @@ export function LanguageSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const languages: { code: Language; label: string; native: string } = [
+  const languages: { code: Language; label: string; native: string }[] = [
     { code: 'en', label: 'English', native: 'English' },
     { code: 'ta', label: 'Tamil', native: 'தமிழ்' },
     { code: 'si', label: 'Sinhala', native: 'සිංහල' },
