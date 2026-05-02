@@ -59,6 +59,52 @@ export interface AuthResponse {
   };
 }
 
+export interface ServiceTypeDto {
+  id: string;
+  parent_id: string | null;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  active: boolean;
+  sort_order: number;
+  created_at?: string;
+}
+
+export interface ServiceTypePayload {
+  parent_id?: string | null;
+  slug?: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  active?: boolean;
+  sort_order?: number;
+}
+
+export interface AdminProviderDto {
+  id: string;
+  userId: string;
+  businessName: string;
+  category: string;
+  location: string;
+  status: 'pending' | 'active' | 'rejected';
+  createdAt: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  profileImage: string;
+  isActive: boolean;
+}
+
+export interface AdminProviderFilters {
+  search?: string;
+  status?: string;
+  category?: string;
+  location?: string;
+}
+
 export const authApi = {
   login: (data: LoginPayload) =>
     api.post<AuthResponse>('/auth/login', data),
@@ -68,6 +114,34 @@ export const authApi = {
 
   getMe: () =>
     api.get<AuthResponse['user']>('/auth/me'),
+};
+
+export const serviceTypeApi = {
+  list: () =>
+    api.get<ServiceTypeDto[]>('/service-types'),
+
+  create: (data: ServiceTypePayload) =>
+    api.post<ServiceTypeDto>('/service-types', data),
+
+  update: (id: string, data: Partial<ServiceTypePayload>) =>
+    api.put<ServiceTypeDto>(`/service-types/${id}`, data),
+
+  updateStatus: (id: string, active: boolean) =>
+    api.patch<ServiceTypeDto>(`/service-types/${id}/status`, { active }),
+
+  delete: (id: string) =>
+    api.delete<{ success: boolean; message: string }>(`/service-types/${id}`),
+};
+
+export const adminApi = {
+  listProviders: (filters: AdminProviderFilters = {}) =>
+    api.get<AdminProviderDto[]>('/admin/providers', { params: filters }),
+
+  approveProvider: (id: string) =>
+    api.post<{ success: boolean; message: string }>(`/admin/providers/${id}/approve`),
+
+  rejectProvider: (id: string) =>
+    api.post<{ success: boolean; message: string }>(`/admin/providers/${id}/reject`),
 };
 
 export default api;
