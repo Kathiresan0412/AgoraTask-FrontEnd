@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Briefcase, Calendar, MessageSquare, DollarSign,
-  Settings, Star, CheckCircle, Clock, Zap,
+  Settings, Star, Zap,
   LogOut, ChevronRight, BarChart2, Plus, MapPin, Save, Crosshair, X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,7 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { providerApi, serviceTypeApi } from '@/lib/api';
 import type { ProviderServiceDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, getLocationLabel, normalizeCountryCode } from '@/lib/locations';
+import { formatServicePrice } from '@/lib/countries';
 
 type Section = 'overview' | 'services' | 'bookings' | 'messages' | 'earnings' | 'settings';
 
@@ -94,7 +95,7 @@ export default function ProviderDashboard() {
   }, []);
 
   useEffect(() => {
-    if (section === 'services' && !servicesLoaded) {
+    if ((section === 'overview' || section === 'services') && !servicesLoaded) {
       loadServicesData();
     }
   }, [loadServicesData, section, servicesLoaded]);
@@ -195,37 +196,30 @@ export default function ProviderDashboard() {
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <StatCard label="Monthly Earnings" value="Rs. 124,500" icon={DollarSign} accent="#10B981" />
-        <StatCard label="Active Bookings" value="12" icon={Calendar} accent="#3B82F6" />
-        <StatCard label="Overall Rating" value="4.8 / 5.0" icon={Star} accent="#F59E0B" />
+        <StatCard label="Published Services" value={String(services.filter(service => service.status === 'active').length)} icon={Briefcase} accent="#10B981" />
+        <StatCard label="Draft Services" value={String(services.filter(service => service.status === 'draft').length)} icon={Calendar} accent="#3B82F6" />
+        <StatCard label="Reviews" value="API required" icon={Star} accent="#F59E0B" />
       </div>
 
-      <h2 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">New Booking Requests</h2>
-      <div className="space-y-4">
-        {[
-          { service: 'Deep House Cleaning', customer: 'Nuwan Perera', time: 'Tomorrow, 10:00 AM' },
-          { service: 'Office AC Servicing', customer: 'Kumari Silva', time: 'May 3, 02:00 PM' },
-        ].map((req) => (
-          <div key={req.service} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="w-11 h-11 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5 text-slate-500" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-slate-900 dark:text-white">{req.service}</h4>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                Requested by <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{req.customer}</span> · {req.time}
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button className="border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold px-4 py-2 rounded-xl text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                Decline
-              </button>
-              <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl text-sm flex items-center gap-1.5 transition-colors shadow-sm shadow-indigo-500/20">
-                <CheckCircle className="w-4 h-4" /> Accept
-              </button>
-            </div>
+      <h2 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Service Activity</h2>
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+        {servicesLoading ? (
+          <p>Loading services...</p>
+        ) : services.length === 0 ? (
+          <p>No provider services were returned by the API.</p>
+        ) : (
+          <div className="space-y-3">
+            {services.slice(0, 4).map(service => (
+              <div key={service.id} className="flex flex-col gap-2 rounded-xl border border-slate-100 p-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">{service.title}</p>
+                  <p>{service.status}</p>
+                </div>
+                <p className="font-semibold text-slate-700 dark:text-slate-200">{formatServicePrice(service.base_price, service.price_type, countryCode)}</p>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -377,7 +371,7 @@ export default function ProviderDashboard() {
               <span className="rounded-full bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">{service.status}</span>
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-500">
-              <span>Rs. {service.base_price || 0} · {service.price_type}</span>
+              <span>{formatServicePrice(service.base_price, service.price_type, countryCode)} · {service.price_type}</span>
               {service.service_area?.[0] && <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {service.service_area[0]}</span>}
             </div>
           </div>

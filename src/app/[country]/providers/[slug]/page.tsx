@@ -10,8 +10,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { publicServiceApi, PublicProviderDto, PublicServiceDto } from '@/lib/api';
+import { formatServicePrice } from '@/lib/countries';
 
-const FALLBACK_COVER_IMAGE = 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=2000&auto=format&fit=crop';
 const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Provider';
 
 type Review = {
@@ -22,40 +22,16 @@ type Review = {
   date: string;
 };
 
-const initialReviews: Review[] = [
-  {
-    id: '1',
-    customer: 'Nimali Fernando',
-    rating: 5,
-    comment: 'Very punctual and the apartment felt spotless after the deep clean.',
-    date: 'Apr 24, 2026',
-  },
-  {
-    id: '2',
-    customer: 'Kasun Perera',
-    rating: 5,
-    comment: 'Good communication before the booking and professional service on arrival.',
-    date: 'Apr 12, 2026',
-  },
-  {
-    id: '3',
-    customer: 'Ayesha Silva',
-    rating: 4,
-    comment: 'Reliable team. I would book them again for office cleaning.',
-    date: 'Mar 30, 2026',
-  },
-];
-
 const loadSavedReviews = (providerEmail: string) => {
-  if (typeof window === 'undefined') return initialReviews;
+  if (typeof window === 'undefined') return [];
 
   const saved = window.localStorage.getItem(`agoratask_reviews_${providerEmail}`);
-  if (!saved) return initialReviews;
+  if (!saved) return [];
 
   try {
     return JSON.parse(saved) as Review[];
   } catch {
-    return initialReviews;
+    return [];
   }
 };
 
@@ -72,7 +48,7 @@ export default function ProviderProfilePage() {
   const [messageText, setMessageText] = useState('');
   const [messageStatus, setMessageStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [messageError, setMessageError] = useState('');
-  const [reviews, setReviews] = useState<Review[]>(initialReviews);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
@@ -194,9 +170,7 @@ export default function ProviderProfilePage() {
   };
 
   const formatPrice = (service: PublicServiceDto) => {
-    if (!service.basePrice) return 'Quote';
-    const suffix = service.priceType === 'hourly' ? ' / hr' : '';
-    return `Rs. ${Number(service.basePrice).toLocaleString()}${suffix}`;
+    return formatServicePrice(service.basePrice, service.priceType, country);
   };
 
   const formatDuration = (minutes: number | null) => {
@@ -245,7 +219,9 @@ export default function ProviderProfilePage() {
       <Navbar />
 
       <div className="w-full h-64 md:h-80 relative bg-slate-800">
-        <img src={provider.coverImage || FALLBACK_COVER_IMAGE} alt="Provider cover" className="w-full h-full object-cover opacity-60 mix-blend-overlay" />
+        {provider.coverImage ? (
+          <img src={provider.coverImage} alt="Provider cover" className="w-full h-full object-cover opacity-60 mix-blend-overlay" />
+        ) : null}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
       </div>
 
@@ -366,6 +342,11 @@ export default function ProviderProfilePage() {
 
             <div className="grid lg:grid-cols-[1fr_320px] gap-8">
               <div className="space-y-4">
+                {reviews.length === 0 && (
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 text-sm text-slate-500 dark:text-slate-400">
+                    Reviews will appear here when they are returned by the API.
+                  </div>
+                )}
                 {reviews.map(review => (
                   <div key={review.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
                     <div className="flex items-start justify-between gap-3 mb-3">

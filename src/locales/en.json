@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "AgoraTask",
-    "tagline": "Sri Lanka's #1 Service Platform",
+    "tagline": "Service Marketplace",
     "login": "Sign In",
     "logout": "Sign Out",
     "register": "Sign Up",
@@ -59,7 +59,7 @@
   "login": {
     "title": "Welcome back",
     "subtitle": "Sign in to your AgoraTask account",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "Email address",
     "passwordPlaceholder": "Enter your password",
     "rememberMe": "Remember me",
     "forgotPassword": "Forgot password?",
@@ -168,7 +168,7 @@
     "messageProvider": "Message a provider"
   },
   "footer": {
-    "description": "Your trusted platform for finding reliable service providers across Sri Lanka.",
+    "description": "Your trusted platform for finding reliable service providers.",
     "quickLinks": "Quick Links",
     "support": "Support",
     "helpCenter": "Help Center",

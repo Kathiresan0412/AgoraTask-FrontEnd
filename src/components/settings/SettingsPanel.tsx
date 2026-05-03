@@ -5,6 +5,7 @@ import { Camera, Save, Lock, Eye, EyeOff, User, Mail, Shield, CheckCircle, Alert
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import api from '@/lib/api';
+import axios from 'axios';
 
 export function SettingsPanel() {
   const { user, updateProfile } = useAuth();
@@ -62,8 +63,9 @@ export function SettingsPanel() {
       await api.put('/users/profile', { name: name.trim(), profileImage });
       updateProfile(name.trim(), profileImage);
       setProfileSuccess('Profile updated successfully!');
-    } catch (err: any) {
-      setProfileError(err?.response?.data?.error || 'Failed to update profile.');
+    } catch (err: unknown) {
+      const message = axios.isAxiosError<{ error?: string }>(err) ? err.response?.data?.error : undefined;
+      setProfileError(message || 'Failed to update profile.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -93,8 +95,9 @@ export function SettingsPanel() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err: any) {
-      setPasswordError(err?.response?.data?.error || 'Failed to change password.');
+    } catch (err: unknown) {
+      const message = axios.isAxiosError<{ error?: string }>(err) ? err.response?.data?.error : undefined;
+      setPasswordError(message || 'Failed to change password.');
     } finally {
       setIsSavingPassword(false);
     }

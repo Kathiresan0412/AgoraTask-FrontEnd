@@ -3,34 +3,55 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { Crosshair, Filter, MapPin, Star, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Crosshair, Filter, ImageIcon, MapPin, Star, Tag, X } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { publicServiceApi } from '@/lib/api';
-import type { PublicServiceDto } from '@/lib/api';
+import { useParams, useSearchParams } from 'next/navigation';
+import { publicServiceApi, serviceTypeApi } from '@/lib/api';
+import type { PublicServiceDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, normalizeCountryCode } from '@/lib/locations';
+import { formatServicePrice, getCountryConfig } from '@/lib/countries';
 
-const FALLBACK_CATEGORIES = ['Cleaning', 'Plumbing', 'Electrical', 'Beauty', 'Repairs'];
 const PAGE_SIZE = 8;
 
-const formatPrice = (service: PublicServiceDto) => {
-  if (service.basePrice === null || service.basePrice === undefined) return 'Quote';
-  const prefix = service.priceType === 'hourly' ? 'Rs. ' : service.priceType === 'quote' ? 'From Rs. ' : 'Rs. ';
-  return `${prefix}${Number(service.basePrice).toLocaleString()}`;
-};
+const isImageSource = (value?: string | null) =>
+  Boolean(value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/')));
+
+const getServiceTypeImage = (type: ServiceTypeDto) => type.image_url || type.imageUrl || (isImageSource(type.icon) ? type.icon : null);
+
+function ServiceTypeVisual({ type }: { type: ServiceTypeDto }) {
+  const image = getServiceTypeImage(type);
+
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+      {image ? (
+        <img src={image} alt="" className="h-full w-full object-cover" />
+      ) : type.icon ? (
+        <span className="text-base leading-none">{type.icon}</span>
+      ) : (
+        <Tag className="h-4 w-4" />
+      )}
+    </span>
+  );
+}
 
 export default function ServicesPage() {
   const params = useParams<{ country?: string }>();
+  const searchParams = useSearchParams();
   const country = params.country || 'lk';
   const countryCode = normalizeCountryCode(country);
+  const countryConfig = getCountryConfig(countryCode);
   const isCanada = countryCode === 'ca';
-  const countryName = countryCode === 'ca' ? 'Canada' : 'Sri Lanka';
   const locations = getCountryLocations(countryCode);
   const [services, setServices] = useState<PublicServiceDto[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 });
   const [servicesLoading, setServicesLoading] = useState(true);
   const [servicesError, setServicesError] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceTypeDto[]>([]);
+  const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    const category = searchParams.get('category');
+    return category ? [category] : [];
+  });
   const [provinceId, setProvinceId] = useState('');
   const [districtId, setDistrictId] = useState('');
   const [cityId, setCityId] = useState('');
@@ -43,7 +64,48 @@ export default function ServicesPage() {
     ? districts.flatMap(district => district.cities)
     : getCitiesByDistrict(provinceId, districtId, countryCode);
   const categoryFilter = selectedCategories[0] || undefined;
-  const categories = Array.from(new Set([...FALLBACK_CATEGORIES, ...selectedCategories, ...services.flatMap(service => service.categories)])).filter(Boolean);
+  const categoryNames = Array.from(new Set([...serviceTypes.map(type => type.name), ...selectedCategories, ...services.flatMap(service => service.categories)])).filter(Boolean);
+  const selectedCategory = selectedCategories[0] || '';
+  const rootServiceTypes = serviceTypes.filter(type => !type.parent_id);
+  const childServiceTypesByParent = serviceTypes.reduce<Record<string, ServiceTypeDto[]>>((groups, type) => {
+    if (!type.parent_id) return groups;
+    return {
+      ...groups,
+      [type.parent_id]: [...(groups[type.parent_id] || []), type],
+    };
+  }, {});
+
+  useEffect(() => {
+    const category = searchParams.get('category');
+    setSelectedCategories(category ? [category] : []);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [searchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCategories = async () => {
+      try {
+        const { data } = await serviceTypeApi.list();
+        if (!cancelled) {
+          const activeTypes = data.filter(type => type.active);
+          setServiceTypes(activeTypes);
+          const selected = searchParams.get('category');
+          const selectedType = activeTypes.find(type => type.name === selected);
+          if (selectedType?.parent_id) {
+            setExpandedServiceTypeIds(prev => Array.from(new Set([...prev, selectedType.parent_id as string])));
+          }
+        }
+      } catch {
+        if (!cancelled) setServiceTypes([]);
+      }
+    };
+
+    loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   const loadServices = useCallback(async () => {
     setServicesLoading(true);
@@ -75,6 +137,38 @@ export default function ServicesPage() {
     setPagination(prev => ({ ...prev, page: 1 }));
     setSelectedCategories(prev =>
       prev.includes(category) ? [] : [category]
+    );
+  };
+
+  const toggleServiceTypeGroup = (id: string) => {
+    setExpandedServiceTypeIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const clearCategory = () => {
+    setPagination(prev => ({ ...prev, page: 1 }));
+    setSelectedCategories([]);
+  };
+
+  const renderServiceTypeOption = (type: ServiceTypeDto, nested = false) => {
+    const selected = selectedCategory === type.name;
+
+    return (
+      <button
+        key={type.id}
+        type="button"
+        onClick={() => toggleCategory(type.name)}
+        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+          selected
+            ? 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300'
+            : 'border-transparent text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60'
+        } ${nested ? 'ml-5 w-[calc(100%-1.25rem)]' : ''}`}
+        aria-pressed={selected}
+      >
+        <ServiceTypeVisual type={type} />
+        <span className="min-w-0 flex-1 truncate font-medium">{type.name}</span>
+      </button>
     );
   };
 
@@ -124,7 +218,7 @@ export default function ServicesPage() {
       <div className="bg-indigo-600 py-16 px-4">
         <div className="container mx-auto max-w-6xl">
           <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Find Services</h1>
-          <p className="text-indigo-100 text-lg max-w-2xl">Browse trusted professionals by service category and exact {countryName} location.</p>
+          <p className="text-indigo-100 text-lg max-w-2xl">Browse trusted professionals by service category and exact {countryConfig.name} location.</p>
         </div>
       </div>
 
@@ -217,14 +311,71 @@ export default function ServicesPage() {
             </div>
 
             <div className="mb-6">
-              <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wider mb-3">Categories</h3>
-              <div className="space-y-3">
-                {categories.map(category => (
-                  <label key={category} className="flex items-center gap-3 text-sm cursor-pointer group">
-                    <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-slate-300 dark:border-slate-700 bg-transparent cursor-pointer" />
-                    <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{category}</span>
-                  </label>
-                ))}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wider">Service Types</h3>
+                {selectedCategory && (
+                  <button type="button" onClick={clearCategory} className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {rootServiceTypes.length > 0 ? (
+                  rootServiceTypes.map(type => {
+                    const children = childServiceTypesByParent[type.id] || [];
+                    const expanded = expandedServiceTypeIds.includes(type.id);
+                    const childSelected = children.some(child => child.name === selectedCategory);
+
+                    if (!children.length) return renderServiceTypeOption(type);
+
+                    return (
+                      <div key={type.id} className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleServiceTypeGroup(type.id)}
+                          className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                            childSelected
+                              ? 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300'
+                              : 'border-transparent text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/60'
+                          }`}
+                          aria-expanded={expanded}
+                        >
+                          <ServiceTypeVisual type={type} />
+                          <span className="min-w-0 flex-1 truncate font-semibold">{type.name}</span>
+                          {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                        </button>
+                        {expanded && (
+                          <div className="space-y-1">
+                            {children.map(child => renderServiceTypeOption(child, true))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  categoryNames.map(category => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => toggleCategory(category)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                        selectedCategory === category
+                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
+                          : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                        <Tag className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{category}</span>
+                    </button>
+                  ))
+                )}
+                {categoryNames.length === 0 && (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
+                    No service types returned by the API.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -267,7 +418,13 @@ export default function ServicesPage() {
                 <Link href={`/${country}/services/${service.id}`} key={service.id} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 hover:shadow-xl hover:shadow-indigo-500/5 hover:border-indigo-200 dark:hover:border-indigo-800/50 transition-all cursor-pointer group flex flex-col h-full">
                   <div className="flex gap-4">
                     <div className="w-24 h-24 rounded-xl bg-slate-200 overflow-hidden shrink-0 border border-slate-100 dark:border-slate-800">
-                      <img src={service.images[0] || `https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=200&q=80&auto=format&fit=crop&sig=${service.id}`} alt={service.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"/>
+                      {service.images[0] ? (
+                        <img src={service.images[0]} alt={service.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"/>
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-800">
+                          <ImageIcon className="h-7 w-7" />
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-1 text-xs font-bold text-amber-500 mb-1">
@@ -283,7 +440,7 @@ export default function ServicesPage() {
                     </div>
                   </div>
                   <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <span className="font-extrabold text-lg text-slate-900 dark:text-white">{formatPrice(service)}</span>
+                    <span className="font-extrabold text-lg text-slate-900 dark:text-white">{formatServicePrice(service.basePrice, service.priceType, countryCode)}</span>
                     <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm group-hover:underline">View details</span>
                   </div>
                 </Link>

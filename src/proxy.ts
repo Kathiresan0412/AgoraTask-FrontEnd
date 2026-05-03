@@ -22,7 +22,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  let countryCode = (request as any).geo?.country?.toLowerCase();
+  const geoRequest = request as NextRequest & { geo?: { country?: string } };
+  let countryCode = geoRequest.geo?.country?.toLowerCase();
 
   // If geo is not available (e.g., local development), fetch from IP API
   if (!countryCode) {

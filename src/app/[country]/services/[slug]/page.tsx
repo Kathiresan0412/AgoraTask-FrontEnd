@@ -7,11 +7,10 @@ import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { publicServiceApi } from '@/lib/api';
 import type { PublicServiceDto } from '@/lib/api';
-import { AlertCircle, CheckCircle, Clock, MapPin, Shield, Star, UserRound } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-
-const FALLBACK_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=1800&auto=format&fit=crop';
+import { formatServicePrice } from '@/lib/countries';
 
 type Review = {
   id: string;
@@ -21,41 +20,17 @@ type Review = {
   date: string;
 };
 
-const initialReviews: Review[] = [
-  {
-    id: '1',
-    customer: 'Nimali Fernando',
-    rating: 5,
-    comment: 'The booking was easy and the provider arrived on time.',
-    date: 'Apr 24, 2026',
-  },
-  {
-    id: '2',
-    customer: 'Kasun Perera',
-    rating: 4,
-    comment: 'Good service and clear communication before the visit.',
-    date: 'Apr 12, 2026',
-  },
-];
-
 const loadSavedReviews = (serviceId: string) => {
-  if (typeof window === 'undefined') return initialReviews;
+  if (typeof window === 'undefined') return [];
 
   const saved = window.localStorage.getItem(`agoratask_service_reviews_${serviceId}`);
-  if (!saved) return initialReviews;
+  if (!saved) return [];
 
   try {
     return JSON.parse(saved) as Review[];
   } catch {
-    return initialReviews;
+    return [];
   }
-};
-
-const formatPrice = (service: PublicServiceDto) => {
-  if (service.basePrice === null || service.basePrice === undefined) return 'Quote';
-  const suffix = service.priceType === 'hourly' ? ' / hr' : '';
-  const prefix = service.priceType === 'quote' ? 'From Rs. ' : 'Rs. ';
-  return `${prefix}${Number(service.basePrice).toLocaleString()}${suffix}`;
 };
 
 const formatDuration = (minutes: number | null) => {
@@ -74,7 +49,7 @@ export default function ServiceDetailPage() {
   const [service, setService] = useState<PublicServiceDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [reviews, setReviews] = useState<Review[]>(initialReviews);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
@@ -201,7 +176,13 @@ export default function ServiceDetailPage() {
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <div className="h-72 bg-slate-200 md:h-96">
-              <img src={service.images[0] || FALLBACK_SERVICE_IMAGE} alt={service.title} className="h-full w-full object-cover" />
+              {service.images[0] ? (
+                <img src={service.images[0]} alt={service.title} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-800">
+                  <ImageIcon className="h-12 w-12" />
+                </div>
+              )}
             </div>
             <div className="p-6 md:p-8">
               <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -221,7 +202,7 @@ export default function ServiceDetailPage() {
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
                   <p className="text-xs font-bold uppercase text-slate-500">Price</p>
-                  <p className="mt-2 text-lg font-black text-indigo-600 dark:text-indigo-400">{formatPrice(service)}</p>
+                  <p className="mt-2 text-lg font-black text-indigo-600 dark:text-indigo-400">{formatServicePrice(service.basePrice, service.priceType, country)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
                   <p className="text-xs font-bold uppercase text-slate-500">Duration</p>
@@ -280,7 +261,12 @@ export default function ServiceDetailPage() {
 
           <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
             <div className="space-y-4">
-              {reviews.map(review => (
+                {reviews.length === 0 && (
+                  <div className="rounded-2xl border border-slate-200 p-5 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                    Reviews will appear here when they are returned by the API.
+                  </div>
+                )}
+                {reviews.map(review => (
                 <div key={review.id} className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>

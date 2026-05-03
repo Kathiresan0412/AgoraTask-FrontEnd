@@ -90,11 +90,8 @@ export default function CustomerAssistant() {
     setTimeout(() => {
       // Simple keyword matching
       const lower = text.toLowerCase();
-      if (lower.includes('plumb') || lower.includes('pipe') || lower.includes('leak')) {
-        addMsg('bot', "I found 5 plumbing experts near you! The highest rated is **CoolTech Plumbing** (4.9 ⭐).",
-          ['📅 Book now', '💬 Message a provider']);
-      } else if (lower.includes('clean')) {
-        addMsg('bot', "I found 8 cleaning services available this week. **Colombo Cleaners** has 47 reviews and a 4.8 rating!",
+      if (lower.includes('plumb') || lower.includes('pipe') || lower.includes('leak') || lower.includes('clean')) {
+        addMsg('bot', "Open the Services page to search live provider records from the API.",
           ['📅 Book now', '💬 Message a provider']);
       } else if (lower.includes('hello') || lower.includes('hi')) {
         addMsg('bot', "Hello! 😊 What service can I help you find today?", CATEGORIES.map(c => `${c.emoji} ${c.label}`));

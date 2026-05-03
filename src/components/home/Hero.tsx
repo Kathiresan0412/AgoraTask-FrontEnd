@@ -3,10 +3,13 @@
 import React from 'react';
 import { Search, MapPin, ArrowRight, ShieldCheck, Clock, Star } from "lucide-react";
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export function Hero() {
   const { t } = useLanguage();
+  const params = useParams<{ country?: string }>();
+  const country = params.country || 'lk';
   return (
     <section className="relative pt-24 pb-32 overflow-hidden px-4">
       <div className="container mx-auto max-w-4xl text-center">
@@ -38,11 +41,11 @@ export function Hero() {
             <MapPin className="w-5 h-5 absolute left-4 text-neutral-500 shrink-0 pointer-events-none" />
             <input 
               type="text" 
-              placeholder="Colombo, Sri Lanka" 
+              placeholder="Use location filters on the services page" 
               className="w-full px-5 py-3.5 text-[14px] font-medium tracking-wide transition-all duration-200 outline-none pl-11 bg-transparent border-none text-[#171717] dark:text-white placeholder:text-neutral-400"
             />
           </div>
-          <Link href="/services" className="bg-[#171717] hover:bg-black dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-[#171717] px-8 py-4 rounded-full font-semibold transition-all flex items-center justify-center gap-2 group w-full md:w-auto">
+          <Link href={`/${country}/services`} className="bg-[#171717] hover:bg-black dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-[#171717] px-8 py-4 rounded-full font-semibold transition-all flex items-center justify-center gap-2 group w-full md:w-auto">
             {t('common.search')}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </Link>

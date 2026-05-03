@@ -7,6 +7,7 @@ import { Zap, Mail, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -17,6 +18,7 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPasswordPage() {
   const params = useParams();
   const country = params.country as string || 'lk';
+  const { t } = useLanguage();
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -98,7 +100,7 @@ export default function ForgotPasswordPage() {
                         ? 'ring-red-300 dark:ring-red-900 focus:ring-red-500' 
                         : 'ring-neutral-200 dark:ring-neutral-800 focus:ring-[#171717] dark:focus:ring-white'
                     }`}
-                    placeholder="you@example.com"
+                    placeholder={t('login.emailPlaceholder')}
                     {...register('email')}
                   />
                 </div>

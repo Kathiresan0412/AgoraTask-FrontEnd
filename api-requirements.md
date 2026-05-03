@@ -1,6 +1,6 @@
 # AgoraTask API Requirements
 
-This document outlines the RESTful API endpoints required to support the frontend features built for AgoraTask. Currently, the frontend uses in-memory mock data. Implementing these endpoints will make the application fully functional.
+This document outlines the RESTful API endpoints required to support the frontend features built for AgoraTask. Production screens must not use dummy service, provider, booking, review, address, or currency data. When an API is missing, the frontend should show an empty/API-required state instead of seeded records.
 
 ---
 
@@ -66,6 +66,10 @@ Endpoints for Admins to monitor platform health and approve providers.
 - **Description:** Fetches high-level metrics for the admin overview.
 - **Response:** `{ "totalUsers", "activeProviders", "totalBookings", "platformRevenue" }`
 
+### `GET /api/admin/services`
+- **Description:** Fetches service records for admin review and moderation. Required before the admin Services tab can show production data.
+- **Response:** Paginated services with provider, location, price, order, and review aggregates.
+
 ### `GET /api/admin/pending-providers`
 - **Description:** Fetches a list of newly registered providers awaiting manual admin approval.
 - **Response:** Array of provider application details `{ "id", "businessName", "category", "location", "status" }`.
@@ -91,6 +95,15 @@ Endpoints specific to service providers for managing their business.
 ### `GET /api/provider/booking-requests`
 - **Description:** Fetches pending booking requests assigned to this provider.
 - **Response:** Array of requests `{ "id", "serviceId", "customerName", "scheduledTime", "status" }`.
+
+### `GET /api/customer/bookings`
+- **Description:** Fetches authenticated customer bookings for the customer dashboard.
+- **Response:** Array of bookings with service, provider, scheduled time, address/location, and status.
+
+### `GET /api/reviews`
+- **Description:** Fetches reviews by `serviceId` or `providerId`. Required before service/provider detail pages can show review records.
+- **Query:** `serviceId` or `providerId`.
+- **Response:** Array of `{ "id", "customerName", "rating", "comment", "createdAt" }`.
 
 ### `POST /api/bookings/:id/accept`
 - **Description:** Provider accepts a pending booking request.

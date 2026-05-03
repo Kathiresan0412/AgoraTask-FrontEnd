@@ -151,7 +151,7 @@ export default function RegisterPage() {
                       ? 'ring-red-300 dark:ring-red-900 focus:ring-red-500' 
                       : 'ring-neutral-200 dark:ring-neutral-800 focus:ring-[#171717] dark:focus:ring-white'
                   }`}
-                  placeholder="John Doe"
+                  placeholder={t('register.namePlaceholder')}
                   {...register('fullName')}
                 />
               </div>
@@ -177,7 +177,7 @@ export default function RegisterPage() {
                       ? 'ring-red-300 dark:ring-red-900 focus:ring-red-500' 
                       : 'ring-neutral-200 dark:ring-neutral-800 focus:ring-[#171717] dark:focus:ring-white'
                   }`}
-                  placeholder="you@example.com"
+                  placeholder={t('login.emailPlaceholder')}
                   {...register('email')}
                 />
               </div>

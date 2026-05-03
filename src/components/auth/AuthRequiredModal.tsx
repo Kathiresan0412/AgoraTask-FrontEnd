@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -33,6 +34,7 @@ export function AuthRequiredModal({
   title = 'Login required',
   message = 'Please log in or create an account to continue.',
 }: AuthRequiredModalProps) {
+  const { t } = useLanguage();
   const { login, isLoading } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -106,7 +108,7 @@ export function AuthRequiredModal({
                 id="modal-email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t('login.emailPlaceholder')}
                 className={`block w-full rounded-xl border bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition-all focus:ring-2 dark:bg-slate-950 dark:text-white ${
                   errors.email
                     ? 'border-red-300 focus:ring-red-500 dark:border-red-900'

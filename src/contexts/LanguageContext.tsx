@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import en from '@/locales/en.json';
 import ta from '@/locales/ta.json';
 import si from '@/locales/si.json';
@@ -8,6 +8,7 @@ import si from '@/locales/si.json';
 export type Language = 'en' | 'ta' | 'si';
 
 type Translations = typeof en;
+type TranslationNode = string | { [key: string]: TranslationNode };
 
 interface LanguageContextType {
   language: Language;
@@ -24,17 +25,11 @@ const translations: Record<Language, Translations> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('en');
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // Load saved language preference on mount
-    const savedLang = localStorage.getItem('agoratask_lang') as Language;
-    if (savedLang && ['en', 'ta', 'si'].includes(savedLang)) {
-      setLanguageState(savedLang);
-    }
-    setMounted(true);
-  }, []);
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window === 'undefined') return 'en';
+    const savedLang = window.localStorage.getItem('agoratask_lang') as Language | null;
+    return savedLang && ['en', 'ta', 'si'].includes(savedLang) ? savedLang : 'en';
+  });
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
@@ -44,28 +39,23 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Helper function to get translation by dot-notation key (e.g., "common.login")
   const t = (keyString: string): string => {
     const keys = keyString.split('.');
-    let current: any = translations[language];
+    let current: TranslationNode = translations[language];
 
     for (const key of keys) {
-      if (current[key] === undefined) {
+      if (typeof current === 'string' || current[key] === undefined) {
         // Fallback to English if translation is missing
-        let fallback: any = translations['en'];
+        let fallback: TranslationNode = translations['en'];
         for (const fbKey of keys) {
-          if (fallback[fbKey] === undefined) return keyString; // Return key if not found in fallback
+          if (typeof fallback === 'string' || fallback[fbKey] === undefined) return keyString; // Return key if not found in fallback
           fallback = fallback[fbKey];
         }
-        return fallback;
+        return typeof fallback === 'string' ? fallback : keyString;
       }
       current = current[key];
     }
 
-    return current as string;
+    return typeof current === 'string' ? current : keyString;
   };
-
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return <div style={{ visibility: 'hidden' }}>{children}</div>; 
-  }
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>

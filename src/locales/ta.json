@@ -59,7 +59,7 @@
   "login": {
     "title": "மீண்டும் வரவேற்கிறோம்",
     "subtitle": "உங்கள் AgoraTask கணக்கில் உள்நுழையுங்கள்",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "Email address",
     "passwordPlaceholder": "உங்கள் கடவுச்சொல்லை உள்ளிடுங்கள்",
     "rememberMe": "என்னை நினைவில் வை",
     "forgotPassword": "கடவுச்சொல் மறந்துவிட்டதா?",

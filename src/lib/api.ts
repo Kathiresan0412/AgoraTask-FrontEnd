@@ -66,6 +66,8 @@ export interface ServiceTypeDto {
   name: string;
   description: string | null;
   icon: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
   color: string | null;
   active: boolean;
   sort_order: number;
