@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Camera, Save, Lock, Eye, EyeOff, User, Mail, Shield, CheckCircle, AlertCircle } from 'lucide-react';
+import { Button, Input } from 'geist/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import api from '@/lib/api';
@@ -105,11 +106,11 @@ export function SettingsPanel() {
 
   return (
     <div className="w-full max-w-3xl mx-auto pb-12">
-      <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-6">{t('profile.title')}</h1>
+      <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mb-6">{t('profile.title')}</h1>
 
       <div className="space-y-6">
         {/* Profile Card */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 rounded-3xl p-8 shadow-sm">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 rounded-3xl p-4 shadow-sm sm:p-8">
           <h2 className="text-lg font-bold text-[#171717] dark:text-white mb-6 flex items-center gap-2">
             <User className="w-5 h-5 text-neutral-400" />
             {t('profile.personalInfo')}
@@ -125,17 +126,17 @@ export function SettingsPanel() {
                   <User className="w-10 h-10 text-neutral-400" />
                 </div>
               )}
-              <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 bg-[#171717] dark:bg-white text-white dark:text-[#171717] p-2 rounded-full shadow-lg hover:scale-110 transition-transform" title="Change photo">
+              <Button onClick={() => fileInputRef.current?.click()} size="icon" className="absolute -bottom-1 -right-1 h-9 w-9 rounded-full" title="Change photo">
                 <Camera className="w-4 h-4" />
-              </button>
+              </Button>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </div>
 
-            <div className="text-center sm:text-left">
+            <div className="min-w-0 text-center sm:text-left">
               <p className="text-xl font-bold text-[#171717] dark:text-white">{user.name}</p>
-              <p className="text-sm text-neutral-500 flex items-center justify-center sm:justify-start gap-1.5 mt-1">
+              <p className="text-sm text-neutral-500 flex min-w-0 items-center justify-center sm:justify-start gap-1.5 mt-1">
                 <Mail className="w-3.5 h-3.5" />
-                {user.email}
+                <span className="min-w-0 truncate">{user.email}</span>
               </p>
               <span className={`inline-flex items-center gap-1.5 mt-3 text-xs font-bold px-3 py-1 rounded-full ${roleBadgeColor}`}>
                 <Shield className="w-3 h-3" />
@@ -146,12 +147,12 @@ export function SettingsPanel() {
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.displayName')}</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="block w-full rounded-full border-0 py-3 px-5 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder="Your display name" />
+            <Input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your display name" />
           </div>
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-neutral-400 mb-2">{t('profile.emailReadOnly')}</label>
-            <input type="email" value={user.email} disabled className="block w-full rounded-full border-0 py-3 px-5 text-neutral-400 bg-neutral-100 dark:bg-neutral-800 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-700 text-sm cursor-not-allowed" />
+            <Input type="email" value={user.email} disabled />
           </div>
 
           {profileSuccess && (
@@ -165,14 +166,14 @@ export function SettingsPanel() {
             </div>
           )}
 
-          <button onClick={handleSaveProfile} disabled={isSavingProfile} className="inline-flex items-center gap-2 bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-7 py-3 rounded-full text-sm font-bold shadow-sm hover:bg-black dark:hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
+          <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="w-full sm:w-auto">
             {isSavingProfile ? <span className="animate-spin rounded-full h-4 w-4 border-2 border-white dark:border-[#171717] border-t-transparent" /> : <Save className="w-4 h-4" />}
             {t('common.save')}
-          </button>
+          </Button>
         </div>
 
         {/* Password Card */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 rounded-3xl p-8 shadow-sm">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-800 rounded-3xl p-4 shadow-sm sm:p-8">
           <h2 className="text-lg font-bold text-[#171717] dark:text-white mb-6 flex items-center gap-2">
             <Lock className="w-5 h-5 text-neutral-400" />
             {t('profile.changePassword')}
@@ -182,30 +183,30 @@ export function SettingsPanel() {
             <div>
               <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.currentPassword')}</label>
               <div className="relative">
-                <input type={showCurrent ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder={t('profile.currentPasswordPlaceholder')} />
-                <button type="button" onClick={() => setShowCurrent(!showCurrent)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
+                <Input type={showCurrent ? 'text' : 'password'} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="pr-12" placeholder={t('profile.currentPasswordPlaceholder')} />
+                <Button type="button" onClick={() => setShowCurrent(!showCurrent)} variant="ghost" size="icon" className="absolute inset-y-0 right-1 h-auto w-10 text-neutral-400">
                   {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                </Button>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.newPassword')}</label>
               <div className="relative">
-                <input type={showNew ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder={t('profile.newPasswordPlaceholder')} />
-                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
+                <Input type={showNew ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="pr-12" placeholder={t('profile.newPasswordPlaceholder')} />
+                <Button type="button" onClick={() => setShowNew(!showNew)} variant="ghost" size="icon" className="absolute inset-y-0 right-1 h-auto w-10 text-neutral-400">
                   {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                </Button>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-[#171717] dark:text-neutral-300 mb-2">{t('profile.confirmNewPassword')}</label>
               <div className="relative">
-                <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-full border-0 py-3 pl-5 pr-12 text-[#171717] dark:text-white bg-[#F9FAFB] dark:bg-neutral-950 ring-1 ring-inset ring-neutral-200 dark:ring-neutral-800 focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-sm transition-all" placeholder={t('profile.confirmPasswordPlaceholder')} />
-                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
+                <Input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pr-12" placeholder={t('profile.confirmPasswordPlaceholder')} />
+                <Button type="button" onClick={() => setShowConfirm(!showConfirm)} variant="ghost" size="icon" className="absolute inset-y-0 right-1 h-auto w-10 text-neutral-400">
                   {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -232,10 +233,10 @@ export function SettingsPanel() {
             </div>
           )}
 
-          <button onClick={handleChangePassword} disabled={isSavingPassword} className="inline-flex items-center gap-2 mt-6 bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-7 py-3 rounded-full text-sm font-bold shadow-sm hover:bg-black dark:hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
+          <Button onClick={handleChangePassword} disabled={isSavingPassword} className="mt-6 w-full sm:w-auto">
             {isSavingPassword ? <span className="animate-spin rounded-full h-4 w-4 border-2 border-white dark:border-[#171717] border-t-transparent" /> : <Lock className="w-4 h-4" />}
             {t('profile.updatePassword')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

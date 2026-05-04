@@ -11,10 +11,12 @@ import { AlertCircle, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserR
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatServicePrice } from '@/lib/countries';
+import { createClientId } from '@/lib/utils';
 
 type Review = {
   id: string;
   customer: string;
+  customerEmail?: string;
   rating: number;
   comment: string;
   date: string;
@@ -53,6 +55,8 @@ export default function ServiceDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
+  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
@@ -92,6 +96,48 @@ export default function ServiceDetailPage() {
     return (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1);
   }, [reviews]);
 
+  const canManageReview = (review: Review) => Boolean(
+    user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name))
+  );
+
+  const userReview = reviews.find(canManageReview);
+
+  const saveReviews = (nextReviews: Review[]) => {
+    if (!service) return;
+
+    setReviews(nextReviews);
+    localStorage.setItem(`agoratask_service_reviews_${service.id}`, JSON.stringify(nextReviews));
+  };
+
+  const resetReviewForm = () => {
+    setReviewComment('');
+    setReviewRating(5);
+    setEditingReviewId(null);
+    setIsReviewFormOpen(false);
+  };
+
+  const handleAddReview = () => {
+    setReviewNotice('');
+    setReviewComment('');
+    setReviewRating(5);
+    setEditingReviewId(null);
+    setIsReviewFormOpen(true);
+  };
+
+  const handleEditReview = (review: Review) => {
+    setReviewNotice('');
+    setReviewComment(review.comment);
+    setReviewRating(review.rating);
+    setEditingReviewId(review.id);
+    setIsReviewFormOpen(true);
+  };
+
+  const handleDeleteReview = (reviewId: string) => {
+    saveReviews(reviews.filter(review => review.id !== reviewId));
+    resetReviewForm();
+    setReviewNotice('Review deleted from this device.');
+  };
+
   const handleSubmitReview = () => {
     if (!service) return;
 
@@ -110,18 +156,33 @@ export default function ServiceDetailPage() {
       return;
     }
 
+    const reviewDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const reviewIdToUpdate = editingReviewId ?? userReview?.id;
+
+    if (reviewIdToUpdate) {
+      saveReviews(reviews.map(review => review.id === reviewIdToUpdate ? {
+        ...review,
+        customerEmail: user.email,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+        date: reviewDate,
+      } : review));
+      resetReviewForm();
+      setReviewNotice('Review updated on this device.');
+      return;
+    }
+
     const nextReview: Review = {
-      id: crypto.randomUUID(),
+      id: createClientId('review'),
       customer: user.name,
+      customerEmail: user.email,
       rating: reviewRating,
       comment: reviewComment.trim(),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: reviewDate,
     };
-    const nextReviews = [nextReview, ...reviews];
-    setReviews(nextReviews);
-    localStorage.setItem(`agoratask_service_reviews_${service.id}`, JSON.stringify(nextReviews));
-    setReviewComment('');
-    setReviewRating(5);
+    saveReviews([nextReview, ...reviews]);
+    resetReviewForm();
     setReviewNotice('Review added on this device. Backend should verify a completed booking before saving permanently.');
   };
 
@@ -261,11 +322,6 @@ export default function ServiceDetailPage() {
 
           <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
             <div className="space-y-4">
-                {reviews.length === 0 && (
-                  <div className="rounded-2xl border border-slate-200 p-5 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                    Reviews will appear here when they are returned by the API.
-                  </div>
-                )}
                 {reviews.map(review => (
                 <div key={review.id} className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
                   <div className="mb-3 flex items-start justify-between gap-3">
@@ -273,9 +329,21 @@ export default function ServiceDetailPage() {
                       <p className="font-bold">{review.customer}</p>
                       <p className="text-xs text-slate-500">{review.date}</p>
                     </div>
-                    <div className="flex items-center gap-1 text-sm font-bold text-amber-600 dark:text-amber-400">
-                      <Star className="h-4 w-4 fill-amber-500" />
-                      {review.rating}
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-1 text-sm font-bold text-amber-600 dark:text-amber-400">
+                        <Star className="h-4 w-4 fill-amber-500" />
+                        {review.rating}
+                      </div>
+                      {canManageReview(review) && (
+                        <div className="flex gap-2 text-xs font-bold">
+                          <button type="button" onClick={() => handleEditReview(review)} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+                            Edit
+                          </button>
+                          <button type="button" onClick={() => handleDeleteReview(review.id)} className="text-red-600 hover:text-red-700 dark:text-red-400">
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{review.comment}</p>
@@ -284,26 +352,42 @@ export default function ServiceDetailPage() {
             </div>
 
             <div className="h-fit rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/50">
-              <h3 className="mb-4 text-lg font-bold">Leave a Review</h3>
-              <div className="mb-4 flex gap-1">
-                {[1, 2, 3, 4, 5].map(rating => (
-                  <button key={rating} onClick={() => setReviewRating(rating)} className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20" aria-label={`${rating} star rating`}>
-                    <Star className={`h-5 w-5 ${rating <= reviewRating ? 'fill-amber-500 text-amber-500' : 'text-slate-300 dark:text-slate-600'}`} />
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-bold">{editingReviewId ? 'Edit Review' : 'Leave a Review'}</h3>
+                {!isReviewFormOpen && !userReview && (
+                  <button type="button" onClick={handleAddReview} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
+                    Add Review
                   </button>
-                ))}
+                )}
               </div>
-              <textarea
-                value={reviewComment}
-                onChange={event => setReviewComment(event.target.value)}
-                rows={4}
-                placeholder="Share how the booked service went"
-                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900"
-              />
+              {isReviewFormOpen && (
+                <>
+                  <div className="mb-4 mt-4 flex gap-1">
+                    {[1, 2, 3, 4, 5].map(rating => (
+                      <button key={rating} onClick={() => setReviewRating(rating)} className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20" aria-label={`${rating} star rating`}>
+                        <Star className={`h-5 w-5 ${rating <= reviewRating ? 'fill-amber-500 text-amber-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={reviewComment}
+                    onChange={event => setReviewComment(event.target.value)}
+                    rows={4}
+                    placeholder="Share how the booked service went"
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900"
+                  />
+                  <div className="mt-4 flex gap-3">
+                    <button onClick={handleSubmitReview} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
+                      <CheckCircle className="h-4 w-4" />
+                      {editingReviewId ? 'Update Review' : 'Submit Review'}
+                    </button>
+                    <button type="button" onClick={resetReviewForm} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900">
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
               {reviewNotice && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{reviewNotice}</p>}
-              <button onClick={handleSubmitReview} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
-                <CheckCircle className="h-4 w-4" />
-                Submit Review
-              </button>
             </div>
           </div>
         </section>

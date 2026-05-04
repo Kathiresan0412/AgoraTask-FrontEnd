@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Check, Edit2, RefreshCw, Send, Trash2, X } from 'lucide-react';
+import { Button, Input } from 'geist/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 
@@ -95,27 +96,31 @@ export function MessagesPanel() {
   if (conv) {
     const otherName = getOtherName(conv);
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center gap-3 mb-4">
-          <button
+      <div className="flex min-h-[calc(100vh-8rem)] flex-col">
+        <div className="flex items-center gap-3 mb-4 min-w-0">
+          <Button
             onClick={() => setActiveConvId(null)}
-            className="text-sm font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 px-2"
           >
             ← Back
-          </button>
-          <div className="flex items-center gap-2">
+          </Button>
+          <div className="flex min-w-0 items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-sm">
               {otherName.charAt(0)}
             </div>
-            <span className="font-bold text-slate-900 dark:text-white text-sm">{otherName}</span>
+            <span className="truncate font-bold text-slate-900 dark:text-white text-sm">{otherName}</span>
           </div>
-          <button
+          <Button
             onClick={refreshConversations}
-            className="ml-auto w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            variant="secondary"
+            size="icon"
+            className="ml-auto h-9 w-9"
             aria-label="Refresh messages"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+          </Button>
         </div>
 
         {(error || actionError) && (
@@ -131,30 +136,30 @@ export function MessagesPanel() {
             const editing = editingMessageId === m.id;
             return (
               <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`group max-w-[78%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                <div className={`group max-w-[88%] break-words px-4 py-2.5 rounded-2xl text-sm leading-relaxed sm:max-w-[78%] ${
                   mine
                     ? 'bg-indigo-600 text-white rounded-tr-sm'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm'
                 }`}>
                   {editing ? (
                     <div className="space-y-2">
-                      <input
+                      <Input
                         value={editingText}
                         onChange={e => setEditingText(e.target.value)}
                         onKeyDown={e => {
                           if (e.key === 'Enter') saveEdit();
                           if (e.key === 'Escape') cancelEdit();
                         }}
-                        className="w-full rounded-lg bg-white text-slate-900 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-300"
+                        className="h-9 bg-white text-slate-900 dark:bg-white dark:text-slate-900"
                         autoFocus
                       />
                       <div className="flex justify-end gap-1">
-                        <button onClick={saveEdit} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center" aria-label="Save message">
+                        <Button onClick={saveEdit} variant="ghost" size="icon" className="h-7 w-7 bg-white/15 text-white hover:bg-white/25 hover:text-white" aria-label="Save message">
                           <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={cancelEdit} className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center" aria-label="Cancel edit">
+                        </Button>
+                        <Button onClick={cancelEdit} variant="ghost" size="icon" className="h-7 w-7 bg-white/15 text-white hover:bg-white/25 hover:text-white" aria-label="Cancel edit">
                           <X className="w-3.5 h-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -166,12 +171,12 @@ export function MessagesPanel() {
                         </p>
                         {mine && (
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                            <button onClick={() => startEdit(m.id, m.text)} className="w-6 h-6 rounded-md bg-white/15 hover:bg-white/25 flex items-center justify-center" aria-label="Edit message">
+                            <Button onClick={() => startEdit(m.id, m.text)} variant="ghost" size="icon" className="h-6 w-6 rounded-md bg-white/15 text-white hover:bg-white/25 hover:text-white" aria-label="Edit message">
                               <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button onClick={() => removeMessage(m.id)} className="w-6 h-6 rounded-md bg-white/15 hover:bg-white/25 flex items-center justify-center" aria-label="Delete message">
+                            </Button>
+                            <Button onClick={() => removeMessage(m.id)} variant="ghost" size="icon" className="h-6 w-6 rounded-md bg-white/15 text-white hover:bg-white/25 hover:text-white" aria-label="Delete message">
                               <Trash2 className="w-3 h-3" />
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -186,20 +191,21 @@ export function MessagesPanel() {
 
         {/* Reply box */}
         <div className="flex gap-2 mt-auto">
-          <input
+          <Input
             value={replyText}
             onChange={e => setReplyText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && send()}
             placeholder={`Message ${otherName}…`}
-            className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500"
+            className="min-w-0 flex-1"
           />
-          <button
+          <Button
             onClick={send}
             disabled={!replyText.trim()}
-            className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center transition-colors disabled:opacity-30 shrink-0"
+            size="icon"
+            className="shrink-0"
           >
             <Send className="w-4 h-4 text-white" />
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -207,16 +213,16 @@ export function MessagesPanel() {
 
   // ── Inbox list ─────────────────────────────────────────────────
   return (
-    <div>
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Messages</h1>
-        <button
+    <div className="min-w-0">
+      <div className="flex flex-col items-stretch justify-between gap-3 mb-6 sm:flex-row sm:items-center">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Messages</h1>
+        <Button
           onClick={refreshConversations}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          variant="secondary"
         >
           <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
-        </button>
+        </Button>
       </div>
 
       {(error || actionError) && (
@@ -227,27 +233,26 @@ export function MessagesPanel() {
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 mb-5">
         <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr_auto] gap-3">
-          <input
+          <Input
             value={recipientEmail}
             onChange={e => setRecipientEmail(e.target.value)}
             placeholder="recipient@email.com"
-            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500"
+            className="min-w-0"
           />
-          <input
+          <Input
             value={newMessageText}
             onChange={e => setNewMessageText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendNewConversation()}
             placeholder="Start a new message"
-            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500"
+            className="min-w-0"
           />
-          <button
+          <Button
             onClick={sendNewConversation}
             disabled={!recipientEmail.trim() || !newMessageText.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="w-4 h-4" />
             Send
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -272,10 +277,11 @@ export function MessagesPanel() {
             const unread = c.messages.filter(m => m.to === user?.email && !m.read).length;
             const otherName = getOtherName(c);
             return (
-              <button
+              <Button
                 key={c.id}
                 onClick={() => setActiveConvId(c.id)}
-                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                variant="ghost"
+                className="h-auto w-full min-w-0 justify-start gap-3 rounded-none px-4 py-4 text-left shadow-none sm:gap-4 sm:px-5"
               >
                 <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
                   {otherName.charAt(0)}
@@ -298,7 +304,7 @@ export function MessagesPanel() {
                     {unread}
                   </span>
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>

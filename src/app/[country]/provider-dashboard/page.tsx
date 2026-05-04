@@ -5,12 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Briefcase, Calendar, MessageSquare, DollarSign,
   Settings, Star, Zap,
-  LogOut, ChevronRight, BarChart2, Plus, MapPin, Save, Crosshair, X
+  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { Button, Combobox, Input, Textarea } from 'geist/components';
 import { providerApi, serviceTypeApi } from '@/lib/api';
 import type { ProviderServiceDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, getLocationLabel, normalizeCountryCode } from '@/lib/locations';
@@ -27,18 +28,43 @@ const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+const isImageSource = (value?: string | null) =>
+  Boolean(value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/')));
+
+const getServiceTypeImage = (type: ServiceTypeDto) => type.image_url || type.imageUrl || (isImageSource(type.icon) ? type.icon : null);
+
+function ServiceTypeVisual({ type, selected = false }: { type: ServiceTypeDto; selected?: boolean }) {
+  const image = getServiceTypeImage(type);
+
+  return (
+    <span className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-slate-500 ${
+      selected
+        ? 'border-white/15 bg-white/10 text-white'
+        : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+    }`}>
+      {image ? (
+        <img src={image} alt="" className="h-full w-full object-cover" />
+      ) : type.icon ? (
+        <span className="text-base leading-none">{type.icon}</span>
+      ) : (
+        <Tag className="h-4 w-4" />
+      )}
+    </span>
+  );
+}
+
 function StatCard({ label, value, icon: Icon, accent }: {
   label: string; value: string; icon: React.ElementType; accent: string;
 }) {
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: accent + '20', color: accent }}>
           <Icon className="w-6 h-6" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{label}</p>
-          <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{value}</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">{value}</h3>
         </div>
       </div>
     </div>
@@ -55,6 +81,7 @@ export default function ProviderDashboard() {
   const locations = getCountryLocations(countryCode);
   const router = useRouter();
   const [section, setSection] = useState<Section>('overview');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [services, setServices] = useState<ProviderServiceDto[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeDto[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
@@ -67,14 +94,23 @@ export default function ProviderDashboard() {
   const [formPrice, setFormPrice] = useState('');
   const [formPriceType, setFormPriceType] = useState<'fixed' | 'hourly' | 'quote'>('fixed');
   const [formDuration, setFormDuration] = useState('');
-  const [formServiceTypeId, setFormServiceTypeId] = useState('');
+  const [formServiceTypeIds, setFormServiceTypeIds] = useState<string[]>([]);
+  const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
   const [formProvinceId, setFormProvinceId] = useState('');
   const [formDistrictId, setFormDistrictId] = useState('');
   const [formCityId, setFormCityId] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [locationMessage, setLocationMessage] = useState('');
+  const priceTypeComboboxId = React.useId();
+  const provinceComboboxId = React.useId();
+  const districtComboboxId = React.useId();
+  const cityComboboxId = React.useId();
 
   const handleLogout = () => { logout(); router.push(`/${country}/login`); };
+  const selectSection = (nextSection: Section) => {
+    setSection(nextSection);
+    setMobileNavOpen(false);
+  };
 
   const loadServicesData = useCallback(async () => {
     setServicesLoading(true);
@@ -105,6 +141,14 @@ export default function ProviderDashboard() {
   const providerCities = isCanada
     ? providerDistricts.flatMap(district => district.cities)
     : getCitiesByDistrict(formProvinceId, formDistrictId, countryCode);
+  const rootServiceTypes = serviceTypes.filter(type => !type.parent_id);
+  const childServiceTypesByParent = serviceTypes.reduce<Record<string, ServiceTypeDto[]>>((groups, type) => {
+    if (!type.parent_id) return groups;
+    return {
+      ...groups,
+      [type.parent_id]: [...(groups[type.parent_id] || []), type],
+    };
+  }, {});
 
   const resetServiceForm = () => {
     setFormTitle('');
@@ -112,11 +156,24 @@ export default function ProviderDashboard() {
     setFormPrice('');
     setFormPriceType('fixed');
     setFormDuration('');
-    setFormServiceTypeId('');
+    setFormServiceTypeIds([]);
+    setExpandedServiceTypeIds([]);
     setFormProvinceId('');
     setFormDistrictId('');
     setFormCityId('');
     setLocationMessage('');
+  };
+
+  const toggleServiceTypeGroup = (id: string) => {
+    setExpandedServiceTypeIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleServiceType = (id: string) => {
+    setFormServiceTypeIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
   };
 
   const useCurrentLocation = () => {
@@ -150,10 +207,10 @@ export default function ProviderDashboard() {
   };
 
   const createService = async () => {
-    if (!formTitle.trim() || !formServiceTypeId || !formProvinceId || !effectiveFormDistrictId || !formCityId) {
+    if (!formTitle.trim() || formServiceTypeIds.length === 0 || !formProvinceId || !effectiveFormDistrictId || !formCityId) {
       setServicesError(isCanada
-        ? 'Title, service type, province/territory, and city are required.'
-        : 'Title, service type, province, district, and city are required.'
+        ? 'Title, at least one service type, province/territory, and city are required.'
+        : 'Title, at least one service type, province, district, and city are required.'
       );
       return;
     }
@@ -175,7 +232,7 @@ export default function ProviderDashboard() {
         ],
         images: [],
         status: 'active',
-        service_type_ids: [formServiceTypeId],
+        service_type_ids: formServiceTypeIds,
       });
 
       setServices(prev => [data, ...prev]);
@@ -191,18 +248,18 @@ export default function ProviderDashboard() {
   // ── Section content ──────────────────────────────────────────────
   const renderOverview = () => (
     <div>
-      <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-6">
+      <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mb-6">
         Welcome back, {user?.name || 'Provider'} 👋
       </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 mb-8">
         <StatCard label="Published Services" value={String(services.filter(service => service.status === 'active').length)} icon={Briefcase} accent="#10B981" />
         <StatCard label="Draft Services" value={String(services.filter(service => service.status === 'draft').length)} icon={Calendar} accent="#3B82F6" />
         <StatCard label="Reviews" value="API required" icon={Star} accent="#F59E0B" />
       </div>
 
       <h2 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Service Activity</h2>
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
         {servicesLoading ? (
           <p>Loading services...</p>
         ) : services.length === 0 ? (
@@ -211,11 +268,11 @@ export default function ProviderDashboard() {
           <div className="space-y-3">
             {services.slice(0, 4).map(service => (
               <div key={service.id} className="flex flex-col gap-2 rounded-xl border border-slate-100 p-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="font-bold text-slate-900 dark:text-white">{service.title}</p>
                   <p>{service.status}</p>
                 </div>
-                <p className="font-semibold text-slate-700 dark:text-slate-200">{formatServicePrice(service.base_price, service.price_type, countryCode)}</p>
+                <p className="font-semibold text-slate-700 dark:text-slate-200 sm:text-right">{formatServicePrice(service.base_price, service.price_type, countryCode)}</p>
               </div>
             ))}
           </div>
@@ -237,19 +294,109 @@ export default function ProviderDashboard() {
     );
   };
 
+  const renderServiceTypeOption = (type: ServiceTypeDto) => {
+    const selected = formServiceTypeIds.includes(type.id);
+
+    return (
+      <button
+        key={type.id}
+        type="button"
+        onClick={() => toggleServiceType(type.id)}
+        className={`flex min-h-[4.75rem] w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/15 dark:focus-visible:ring-white/15 ${
+          selected
+            ? 'border-slate-950 bg-slate-950 text-white shadow-sm dark:border-white dark:bg-white dark:text-slate-950'
+            : 'border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-600 dark:hover:bg-slate-900'
+        }`}
+        aria-pressed={selected}
+      >
+        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+          selected
+            ? 'border-white bg-white text-slate-950 dark:border-slate-950 dark:bg-slate-950 dark:text-white'
+            : 'border-slate-300 text-slate-400 dark:border-slate-600'
+        }`}>
+          {selected ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+        </span>
+        <ServiceTypeVisual type={type} selected={selected} />
+        <span className="min-w-0 flex-1 leading-5">{type.name}</span>
+      </button>
+    );
+  };
+
+  const renderServiceTypePicker = () => (
+    <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">Service Types</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Choose every type that fits this service.</p>
+        </div>
+        {formServiceTypeIds.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setFormServiceTypeIds([])}
+            className="w-fit text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          >
+            Clear selected ({formServiceTypeIds.length})
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {rootServiceTypes.length > 0 ? (
+          rootServiceTypes.map(type => {
+            const children = childServiceTypesByParent[type.id] || [];
+            const expanded = expandedServiceTypeIds.includes(type.id);
+            const childSelectedCount = children.filter(child => formServiceTypeIds.includes(child.id)).length;
+            const selected = formServiceTypeIds.includes(type.id);
+
+            if (!children.length) return renderServiceTypeOption(type);
+
+            return (
+              <div key={type.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <button
+                  type="button"
+                  onClick={() => toggleServiceTypeGroup(type.id)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/70"
+                  aria-expanded={expanded}
+                >
+                  <ServiceTypeVisual type={type} selected={selected} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-slate-900 dark:text-white">{type.name}</span>
+                  {childSelectedCount > 0 && (
+                    <span className="rounded-full bg-slate-950 px-2 py-0.5 text-xs font-bold text-white dark:bg-white dark:text-slate-950">
+                      {childSelectedCount}
+                    </span>
+                  )}
+                  {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />}
+                </button>
+                {expanded && (
+                  <div className="grid gap-3 border-t border-slate-100 p-3 dark:border-slate-800 sm:grid-cols-2">
+                    {children.map(child => renderServiceTypeOption(child))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <p className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+            No service types returned by the API.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
   const renderServices = () => (
     <div>
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">My Services</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">My Services</h1>
           <p className="text-sm text-slate-500 mt-0.5">Create services and select your exact service city.</p>
         </div>
-        <button
+        <Button
           onClick={() => setShowServiceForm(prev => !prev)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
+          className="w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" /> Add Service
-        </button>
+        </Button>
       </div>
 
       {servicesError && (
@@ -259,102 +406,144 @@ export default function ProviderDashboard() {
       )}
 
       {showServiceForm && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-6">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-6 mb-6">
           <h2 className="font-bold text-slate-900 dark:text-white mb-4">Create Service</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Service title" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-            <select value={formServiceTypeId} onChange={e => setFormServiceTypeId(e.target.value)} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="">Select service type</option>
-              {serviceTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
-            </select>
-            <textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Description" className="md:col-span-2 min-h-24 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-            <input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" min="0" placeholder="Base price" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-            <select value={formPriceType} onChange={e => setFormPriceType(e.target.value as 'fixed' | 'hourly' | 'quote')} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="fixed">Fixed price</option>
-              <option value="hourly">Hourly</option>
-              <option value="quote">Quote</option>
-            </select>
-            <input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="1" placeholder="Duration minutes" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+            <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Service title" />
+            <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="1" placeholder="Duration minutes" />
+            {renderServiceTypePicker()}
+            <Textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Description" className="md:col-span-2" />
+            <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" min="0" placeholder="Base price" />
+            <Combobox
+              id={priceTypeComboboxId}
+              value={formPriceType}
+              onValueChange={value => setFormPriceType(value as 'fixed' | 'hourly' | 'quote')}
+              placeholder="Select price type"
+            >
+              <Combobox.Input />
+              <Combobox.List>
+                <Combobox.Option value="fixed">Fixed price</Combobox.Option>
+                <Combobox.Option value="hourly">Hourly</Combobox.Option>
+                <Combobox.Option value="quote">Quote</Combobox.Option>
+              </Combobox.List>
+            </Combobox>
             <div className="relative">
-              <select value={formProvinceId} onChange={e => { setFormProvinceId(e.target.value); setFormDistrictId(''); setFormCityId(''); }} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="">{countryCode === 'ca' ? 'Select province/territory' : 'Select province'}</option>
-                {locations.map(province => <option key={province.id} value={province.id}>{province.name}</option>)}
-              </select>
+              <Combobox
+                id={provinceComboboxId}
+                value={formProvinceId}
+                onValueChange={value => {
+                  setFormProvinceId(value);
+                  setFormDistrictId('');
+                  setFormCityId('');
+                }}
+                placeholder={countryCode === 'ca' ? 'Select province/territory' : 'Select province'}
+              >
+                <Combobox.Input />
+                <Combobox.List>
+                  {locations.map(province => <Combobox.Option key={province.id} value={province.id}>{province.name}</Combobox.Option>)}
+                </Combobox.List>
+              </Combobox>
               {formProvinceId && (
-                <button
+                <Button
                   type="button"
                   onClick={() => {
                     setFormProvinceId('');
                     setFormDistrictId('');
                     setFormCityId('');
                   }}
-                  className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-9 top-1/2 h-8 w-8 -translate-y-1/2 text-slate-400"
                   aria-label="Clear province"
                 >
                   <X className="w-4 h-4" />
-                </button>
+                </Button>
               )}
             </div>
             {!isCanada && (
               <div className="relative">
-                <select value={formDistrictId} onChange={e => { setFormDistrictId(e.target.value); setFormCityId(''); }} disabled={!formProvinceId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                  <option value="">Select district</option>
-                  {providerDistricts.map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
-                </select>
+                <Combobox
+                  id={districtComboboxId}
+                  value={formDistrictId}
+                  onValueChange={value => {
+                    setFormDistrictId(value);
+                    setFormCityId('');
+                  }}
+                  disabled={!formProvinceId}
+                  placeholder="Select district"
+                >
+                  <Combobox.Input />
+                  <Combobox.List>
+                    {providerDistricts.map(district => <Combobox.Option key={district.id} value={district.id}>{district.name}</Combobox.Option>)}
+                  </Combobox.List>
+                </Combobox>
                 {formDistrictId && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       setFormDistrictId('');
                       setFormCityId('');
                     }}
-                    className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-9 top-1/2 h-8 w-8 -translate-y-1/2 text-slate-400"
                     aria-label="Clear district"
                   >
                     <X className="w-4 h-4" />
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
             <div className="space-y-2">
               <div className="flex gap-2">
                 <div className="relative min-w-0 flex-1">
-                  <select value={formCityId} onChange={e => setFormCityId(e.target.value)} disabled={isCanada ? !formProvinceId : !formDistrictId} className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                    <option value="">Select city</option>
-                    {providerCities.map(city => <option key={city.id} value={city.id}>{city.sub_name ? `${city.name} - ${city.sub_name}` : city.name}</option>)}
-                  </select>
+                  <Combobox
+                    id={cityComboboxId}
+                    value={formCityId}
+                    onValueChange={setFormCityId}
+                    disabled={isCanada ? !formProvinceId : !formDistrictId}
+                    placeholder="Select city"
+                  >
+                    <Combobox.Input />
+                    <Combobox.List>
+                      {providerCities.map(city => <Combobox.Option key={city.id} value={city.id}>{city.sub_name ? `${city.name} - ${city.sub_name}` : city.name}</Combobox.Option>)}
+                    </Combobox.List>
+                  </Combobox>
                   {formCityId && (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setFormCityId('')}
-                      className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-9 top-1/2 h-8 w-8 -translate-y-1/2 text-slate-400"
                       aria-label="Clear city"
                     >
                       <X className="w-4 h-4" />
-                    </button>
+                    </Button>
                   )}
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={useCurrentLocation}
                   disabled={detectingLocation}
-                  className="w-11 h-11 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 transition-colors flex items-center justify-center"
+                  variant="secondary"
+                  size="icon"
                   aria-label="Use my current location"
                   title="Use my current location"
                 >
                   <Crosshair className={`w-4 h-4 ${detectingLocation ? 'animate-spin' : ''}`} />
-                </button>
+                </Button>
               </div>
               {locationMessage && <p className="text-xs text-slate-500">{locationMessage}</p>}
             </div>
           </div>
-          <div className="flex gap-3 mt-5">
-            <button onClick={createService} disabled={savingService} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          <div className="flex flex-col gap-3 mt-5 sm:flex-row">
+            <Button onClick={createService} disabled={savingService}>
               <Save className="w-4 h-4" /> {savingService ? 'Saving...' : 'Create Service'}
-            </button>
-            <button onClick={() => { resetServiceForm(); setShowServiceForm(false); }} disabled={savingService} className="rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+            </Button>
+            <Button onClick={() => { resetServiceForm(); setShowServiceForm(false); }} disabled={savingService} variant="secondary">
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -363,17 +552,26 @@ export default function ProviderDashboard() {
         {servicesLoading && <p className="text-slate-500">Loading services...</p>}
         {!servicesLoading && services.map(service => (
           <div key={service.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <h3 className="font-bold text-slate-900 dark:text-white">{service.title}</h3>
                 <p className="text-sm text-slate-500 mt-1">{service.description || 'No description added.'}</p>
               </div>
-              <span className="rounded-full bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">{service.status}</span>
+              <span className="w-fit rounded-full bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">{service.status}</span>
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-500">
               <span>{formatServicePrice(service.base_price, service.price_type, countryCode)} · {service.price_type}</span>
               {service.service_area?.[0] && <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {service.service_area[0]}</span>}
             </div>
+            {service.service_types.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {service.service_types.map(type => (
+                  <span key={type.id} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    {type.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {!servicesLoading && services.length === 0 && (
@@ -395,12 +593,86 @@ export default function ProviderDashboard() {
     settings: <SettingsPanel />,
   };
 
+  const renderNavButton = (item: typeof NAV[number], variant: 'full' | 'rail' = 'full') => {
+    const Icon = item.icon;
+    const active = section === item.id;
+    const msgBadge = item.id === 'messages' ? unreadCount(user?.email || '') : 0;
+    const displayBadge = msgBadge > 0 ? msgBadge : item.badge;
+
+    if (variant === 'rail') {
+      return (
+        <Button
+          key={item.id}
+          onClick={() => selectSection(item.id)}
+          variant="ghost"
+          size="icon"
+          className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-all ${active
+              ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+            }`}
+          aria-label={item.label}
+          title={item.label}
+        >
+          <Icon className="h-5 w-5" />
+          {displayBadge ? (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
+              {displayBadge}
+            </span>
+          ) : null}
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        key={item.id}
+        onClick={() => selectSection(item.id)}
+        variant="ghost"
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active
+            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+          }`}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        <span className="flex-1 text-left">{item.label}</span>
+        {displayBadge ? (
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${item.id === 'messages'
+              ? 'bg-amber-500 text-white'
+              : 'bg-indigo-600 text-white'
+            }`}>
+            {displayBadge}
+          </span>
+        ) : (
+          active && <ChevronRight className="w-4 h-4 opacity-40" />
+        )}
+      </Button>
+    );
+  };
+
   // ── Layout ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex bg-slate-100 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 lg:flex">
+
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="rounded-xl bg-indigo-600 p-2">
+            <Zap className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">AgoraTask</span>
+        </div>
+        <Button
+          type="button"
+          onClick={() => setMobileNavOpen(true)}
+          variant="secondary"
+          size="icon"
+          aria-label="Open provider menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      </header>
 
       {/* ── Sidebar ──────────────────────────────────────────────── */}
-      <aside className="w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col min-h-screen">
+      <aside className="hidden w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:flex flex-col min-h-screen">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-200 dark:border-slate-800">
           <div className="bg-indigo-600 p-2 rounded-xl">
@@ -416,64 +688,90 @@ export default function ProviderDashboard() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 space-y-1">
-          {NAV.map(item => {
-            const Icon = item.icon;
-            const active = section === item.id;
-            const msgBadge = item.id === 'messages' ? unreadCount(user?.email || '') : 0;
-            const displayBadge = msgBadge > 0 ? msgBadge : item.badge;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setSection(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active
-                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1 text-left">{item.label}</span>
-                {displayBadge ? (
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${item.id === 'messages'
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-indigo-600 text-white'
-                    }`}>
-                    {displayBadge}
-                  </span>
-                ) : (
-                  active && <ChevronRight className="w-4 h-4 opacity-40" />
-                )}
-              </button>
-            );
-          })}
+          {NAV.map(item => renderNavButton(item))}
         </nav>
 
         {/* Bottom: profile + logout */}
         <div className="border-t border-slate-200 dark:border-slate-800 p-3 space-y-1">
-          {/* <button
-            onClick={() => router.push(`/${country}/profile`)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
-            {user?.profileImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.profileImage} alt="" className="w-6 h-6 rounded-full object-cover" />
-            ) : (
-              <User className="w-4 h-4 shrink-0" />
-            )}
-            <span className="truncate flex-1 text-left">{user?.name || 'Provider'}</span>
-            <Briefcase className="w-3.5 h-3.5 opacity-40" />
-          </button> */}
-          <button
+          <Button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors"
+            variant="destructive"
+            className="w-full justify-start"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             Sign Out
-          </button>
+          </Button>
         </div>
       </aside>
 
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-20 flex-col items-center border-r border-slate-200 bg-white px-3 py-4 dark:border-slate-800 dark:bg-slate-900 md:flex lg:hidden">
+        <div className="mb-6 rounded-xl bg-indigo-600 p-2.5">
+          <Zap className="h-5 w-5 text-white" />
+        </div>
+        <nav className="flex flex-1 flex-col items-center gap-2">
+          {NAV.map(item => renderNavButton(item, 'rail'))}
+        </nav>
+        <Button
+          onClick={handleLogout}
+          variant="destructive"
+          size="icon"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut className="h-5 w-5" />
+        </Button>
+      </aside>
+
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <Button
+            type="button"
+            variant="ghost"
+            className="absolute inset-0 h-auto rounded-none border-0 bg-slate-950/40 p-0 shadow-none hover:bg-slate-950/40"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close provider menu"
+          />
+          <aside className="relative flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col bg-white shadow-2xl dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-5 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-xl bg-indigo-600 p-2">
+                  <Zap className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">AgoraTask</span>
+              </div>
+              <Button
+                type="button"
+                onClick={() => setMobileNavOpen(false)}
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-slate-500"
+                aria-label="Close provider menu"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="px-5 pt-5 pb-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Provider Menu</span>
+            </div>
+            <nav className="flex-1 space-y-1 px-3">
+              {NAV.map(item => renderNavButton(item))}
+            </nav>
+            <div className="border-t border-slate-200 p-3 dark:border-slate-800">
+              <Button
+                onClick={handleLogout}
+                variant="destructive"
+                className="w-full justify-start"
+              >
+                <LogOut className="w-4 h-4 shrink-0" />
+                Sign Out
+              </Button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       {/* ── Main content ─────────────────────────────────────────── */}
-      <main className="flex-1 p-8 overflow-y-auto min-h-screen">
+      <main className="min-h-[calc(100vh-4rem)] min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 md:ml-20 lg:ml-0 lg:min-h-screen lg:p-8">
         {CONTENT[section]}
       </main>
     </div>
