@@ -1,0 +1,57 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Agora Task Logo</title>
+  <desc id="desc">A modern on-demand service logo with location pin, check mark, and service icons.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="74" y1="54" x2="438" y2="458" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00B7FF"/>
+      <stop offset="0.48" stop-color="#0067E8"/>
+      <stop offset="1" stop-color="#0037A8"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="182" y1="150" x2="361" y2="343" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#39F5E6"/>
+      <stop offset="1" stop-color="#12BFD8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#001C66" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="46" y="46" width="420" height="420" rx="92" fill="url(#bg)"/>
+  <path d="M88 386C154 354 244 347 316 359C363 367 404 382 430 399C354 381 297 389 240 402C178 416 132 413 88 386Z" fill="#001E85" opacity="0.28"/>
+
+  <!-- Service icons -->
+  <g opacity="0.95">
+    <path d="M151 224h58l-7 74h-78l-7-74h34Z" fill="#7EE33B" stroke="#084A9B" stroke-width="7"/>
+    <path d="M145 227c0-22 14-38 32-38s32 16 32 38" stroke="white" stroke-width="13" stroke-linecap="round"/>
+
+    <path d="M334 203l59-45 57 45h-16v61h-82v-61h-18Z" fill="#FFD54A" stroke="#084A9B" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M374 264v-41h27v41" fill="#FF7B2E"/>
+
+    <path d="M372 278h52l14 78h-80l14-78Z" fill="#66DDF0" stroke="#084A9B" stroke-width="7"/>
+    <path d="M379 259h39c12 0 21 10 21 22v4h-81v-4c0-12 9-22 21-22Z" fill="white" stroke="#084A9B" stroke-width="7"/>
+    <path d="M408 284l-16 39" stroke="#0782CF" stroke-width="9" stroke-linecap="round"/>
+
+    <path d="M142 167c13 14 35 15 49 2s16-35 3-50l-16 37-31-5 16-37c-19 4-33 22-32 42" fill="white" stroke="#084A9B" stroke-width="7" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Main pin -->
+  <g filter="url(#shadow)">
+    <path d="M256 100c-74 0-134 58-134 130 0 95 134 188 134 188s134-93 134-188c0-72-60-130-134-130Z" fill="white" stroke="#0647B8" stroke-width="12"/>
+    <circle cx="256" cy="229" r="66" fill="#0054C9"/>
+    <path d="M211 231l34 34 72-74" stroke="url(#cyan)" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M211 231l34 34 72-74" stroke="white" stroke-opacity="0.28" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Sparkles -->
+  <path d="M89 174l9 20 20 9-20 9-9 20-9-20-20-9 20-9 9-20Z" fill="white"/>
+  <path d="M434 176l7 15 15 7-15 7-7 15-7-15-15-7 15-7 7-15Z" fill="white" opacity="0.95"/>
+
+  <!-- Brand text -->
+  <g>
+    <text x="256" y="444" text-anchor="middle" font-family="Inter, Poppins, Arial, sans-serif" font-size="62" font-weight="800" letter-spacing="-2">
+      <tspan fill="white">Agora</tspan><tspan fill="#36E7E2">Task</tspan>
+    </text>
+    <path d="M132 459C201 477 300 474 381 454" stroke="#65F3FF" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+  </g>
+</svg>

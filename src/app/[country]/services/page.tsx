@@ -10,6 +10,8 @@ import { publicServiceApi, serviceTypeApi } from '@/lib/api';
 import type { PublicServiceDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, normalizeCountryCode } from '@/lib/locations';
 import { formatServicePrice, getCountryConfig } from '@/lib/countries';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const PAGE_SIZE = 8;
 
@@ -34,12 +36,34 @@ function ServiceTypeVisual({ type }: { type: ServiceTypeDto }) {
   );
 }
 
+function ServiceResultSkeleton() {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex gap-4">
+        <Skeleton className="h-24 w-24 shrink-0 rounded-xl" />
+        <div className="min-w-0 flex-1 space-y-3">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-5 w-4/5" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+      </div>
+      <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+        <Skeleton className="h-6 w-24" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+    </div>
+  );
+}
+
 export default function ServicesPage() {
   const params = useParams<{ country?: string }>();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const country = params.country || 'lk';
   const countryCode = normalizeCountryCode(country);
   const countryConfig = getCountryConfig(countryCode);
+  const countryName = t(`countries.${countryCode}`);
   const isCanada = countryCode === 'ca';
   const locations = getCountryLocations(countryCode);
   const [services, setServices] = useState<PublicServiceDto[]>([]);
@@ -122,11 +146,11 @@ export default function ServicesPage() {
       setServices(data.data);
       setPagination(data.pagination);
     } catch {
-      setServicesError('Could not load services from the API.');
+      setServicesError(t('services.loadError'));
     } finally {
       setServicesLoading(false);
     }
-  }, [categoryFilter, cityId, effectiveDistrictId, pagination.page, provinceId]);
+  }, [categoryFilter, cityId, effectiveDistrictId, pagination.page, provinceId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(loadServices, 200);
@@ -184,7 +208,7 @@ export default function ServicesPage() {
     setLocationMessage('');
 
     if (!navigator.geolocation) {
-      setLocationMessage('Location is not supported by this browser.');
+      setLocationMessage(t('services.locationNotSupported'));
       return;
     }
 
@@ -197,14 +221,14 @@ export default function ServicesPage() {
           setProvinceId(nearest.provinceId);
           setDistrictId(nearest.districtId);
           setCityId(nearest.cityId);
-          setLocationMessage('Location set to nearest city.');
+          setLocationMessage(t('services.locationSet'));
         } else {
-          setLocationMessage('Could not match your location to a city.');
+          setLocationMessage(t('services.locationNoMatch'));
         }
         setDetectingLocation(false);
       },
       () => {
-        setLocationMessage('Allow location access to set your city.');
+        setLocationMessage(t('services.locationDenied'));
         setDetectingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
@@ -217,8 +241,8 @@ export default function ServicesPage() {
 
       <div className="bg-indigo-600 py-16 px-4">
         <div className="container mx-auto max-w-6xl">
-          <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Find Services</h1>
-          <p className="text-indigo-100 text-lg max-w-2xl">Browse trusted professionals by service category and exact {countryConfig.name} location.</p>
+          <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">{t('services.title')}</h1>
+          <p className="text-indigo-100 text-lg max-w-2xl">{t('services.subtitle')} {countryName === `countries.${countryCode}` ? countryConfig.name : countryName}.</p>
         </div>
       </div>
 
@@ -226,11 +250,11 @@ export default function ServicesPage() {
         <aside className="w-full md:w-72 shrink-0">
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 sticky top-24">
             <h2 className="font-bold text-lg flex items-center gap-2 mb-6">
-              <Filter className="w-5 h-5 text-indigo-600" /> Filters
+              <Filter className="w-5 h-5 text-indigo-600" /> {t('services.filters')}
             </h2>
 
             <div className="mb-6">
-              <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wider mb-3">Location</h3>
+              <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wider mb-3">{t('services.location')}</h3>
               <div className="space-y-3">
                 <div className="relative">
                   <select
@@ -243,13 +267,13 @@ export default function ServicesPage() {
                     }}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">{countryCode === 'ca' ? 'All provinces/territories' : 'All provinces'}</option>
+                    <option value="">{countryCode === 'ca' ? t('services.allProvincesTerritories') : t('services.allProvinces')}</option>
                     {locations.map(province => (
                       <option key={province.id} value={province.id}>{province.name}</option>
                     ))}
                   </select>
                   {provinceId && (
-                    <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setProvinceId(''); setDistrictId(''); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Clear province">
+                    <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setProvinceId(''); setDistrictId(''); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={t('services.clearProvince')}>
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -267,13 +291,13 @@ export default function ServicesPage() {
                       disabled={!provinceId}
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                     >
-                      <option value="">All districts</option>
+                      <option value="">{t('services.allDistricts')}</option>
                       {districts.map(district => (
                         <option key={district.id} value={district.id}>{district.name}</option>
                       ))}
                     </select>
                     {districtId && (
-                      <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setDistrictId(''); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Clear district">
+                      <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setDistrictId(''); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={t('services.clearDistrict')}>
                         <X className="w-4 h-4" />
                       </button>
                     )}
@@ -291,18 +315,18 @@ export default function ServicesPage() {
                       disabled={isCanada ? !provinceId : !districtId}
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                     >
-                      <option value="">All cities</option>
+                      <option value="">{t('services.allCities')}</option>
                       {cities.map(city => (
                         <option key={city.id} value={city.id}>{city.sub_name ? `${city.name} - ${city.sub_name}` : city.name}</option>
                       ))}
                     </select>
                     {cityId && (
-                      <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label="Clear city">
+                      <button type="button" onClick={() => { setPagination(prev => ({ ...prev, page: 1 })); setCityId(''); }} className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={t('services.clearCity')}>
                         <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
-                  <button type="button" onClick={useCurrentLocation} disabled={detectingLocation} className="w-11 h-11 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 transition-colors flex items-center justify-center" aria-label="Use my current location" title="Use my current location">
+                  <button type="button" onClick={useCurrentLocation} disabled={detectingLocation} className="w-11 h-11 shrink-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 transition-colors flex items-center justify-center" aria-label={t('services.useCurrentLocation')} title={t('services.useCurrentLocation')}>
                     <Crosshair className={`w-4 h-4 ${detectingLocation ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
@@ -312,10 +336,10 @@ export default function ServicesPage() {
 
             <div className="mb-6">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wider">Service Types</h3>
+                <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wider">{t('services.serviceTypes')}</h3>
                 {selectedCategory && (
                   <button type="button" onClick={clearCategory} className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
-                    Clear
+                    {t('services.clear')}
                   </button>
                 )}
               </div>
@@ -373,14 +397,14 @@ export default function ServicesPage() {
                 )}
                 {categoryNames.length === 0 && (
                   <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
-                    No service types returned by the API.
+                    {t('services.noServiceTypes')}
                   </p>
                 )}
               </div>
             </div>
 
             <button onClick={() => { setSelectedCategories([]); resetLocation(); }} className="w-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold py-3 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors active:scale-95">
-              Reset Filters
+              {t('services.resetFilters')}
             </button>
           </div>
         </aside>
@@ -388,13 +412,13 @@ export default function ServicesPage() {
         <main className="flex-1">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <span className="text-slate-500 dark:text-slate-400 font-medium">
-              Showing <strong className="text-slate-900 dark:text-white">{services.length}</strong> of <strong className="text-slate-900 dark:text-white">{pagination.total}</strong> results
+              {t('services.showing')} <strong className="text-slate-900 dark:text-white">{services.length}</strong> {t('services.of')} <strong className="text-slate-900 dark:text-white">{pagination.total}</strong> {t('services.results')}
             </span>
             <select className="w-full sm:w-auto px-5 py-3.5 text-[14px] font-medium transition-all outline-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm">
-              <option>Recommended</option>
-              <option>Price: Low to High</option>
-              <option>Price: High to Low</option>
-              <option>Highest Rated</option>
+              <option>{t('services.recommended')}</option>
+              <option>{t('services.priceLowHigh')}</option>
+              <option>{t('services.priceHighLow')}</option>
+              <option>{t('services.highestRated')}</option>
             </select>
           </div>
 
@@ -405,12 +429,14 @@ export default function ServicesPage() {
           )}
 
           {servicesLoading ? (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 text-center text-slate-400">
-              Loading services...
+            <div className="grid gap-6 sm:grid-cols-2" aria-label={t('services.loadingServices')}>
+              {Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                <ServiceResultSkeleton key={index} />
+              ))}
             </div>
           ) : services.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 text-center text-slate-400">
-              No services match these filters.
+              {t('services.noMatches')}
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-6">
@@ -428,7 +454,7 @@ export default function ServicesPage() {
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-1 text-xs font-bold text-amber-500 mb-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-500" /> New
+                        <Star className="w-3.5 h-3.5 fill-amber-500" /> {t('services.new')}
                       </div>
                       <h3 className="font-bold text-lg leading-tight mb-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{service.title}</h3>
                       <div className="text-sm text-slate-500 dark:text-slate-400 font-medium">{service.provider.name}</div>
@@ -441,7 +467,7 @@ export default function ServicesPage() {
                   </div>
                   <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <span className="font-extrabold text-lg text-slate-900 dark:text-white">{formatServicePrice(service.basePrice, service.priceType, countryCode)}</span>
-                    <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm group-hover:underline">View details</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm group-hover:underline">{t('services.viewDetails')}</span>
                   </div>
                 </Link>
               ))}
@@ -451,7 +477,7 @@ export default function ServicesPage() {
           {!servicesLoading && pagination.totalPages > 1 && (
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
               <p className="text-sm text-slate-500">
-                Page <strong className="text-slate-900 dark:text-white">{pagination.page}</strong> of <strong className="text-slate-900 dark:text-white">{pagination.totalPages}</strong>
+                {t('services.page')} <strong className="text-slate-900 dark:text-white">{pagination.page}</strong> {t('services.of')} <strong className="text-slate-900 dark:text-white">{pagination.totalPages}</strong>
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -460,7 +486,7 @@ export default function ServicesPage() {
                   disabled={pagination.page <= 1}
                   className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Previous
+                  {t('services.previous')}
                 </button>
                 <button
                   type="button"
@@ -468,7 +494,7 @@ export default function ServicesPage() {
                   disabled={pagination.page >= pagination.totalPages}
                   className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Next
+                  {t('services.next')}
                 </button>
               </div>
             </div>

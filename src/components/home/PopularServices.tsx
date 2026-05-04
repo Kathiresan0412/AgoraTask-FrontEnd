@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { publicServiceApi, PublicServiceDto } from '@/lib/api';
 import { formatServicePrice } from '@/lib/countries';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function PopularServices() {
   const params = useParams<{ country?: string }>();
@@ -50,8 +51,20 @@ export function PopularServices() {
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
-            {t('common.loading')}
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4" aria-label={t('common.loading')}>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="overflow-hidden rounded-3xl border border-neutral-200/60 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+                <Skeleton className="h-48 w-full rounded-none" />
+                <div className="space-y-4 p-6">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-6 w-4/5" />
+                  <div className="flex items-center justify-between pt-2">
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">

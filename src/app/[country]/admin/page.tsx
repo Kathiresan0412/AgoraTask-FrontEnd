@@ -15,6 +15,7 @@ import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { adminApi, serviceTypeApi } from '@/lib/api';
 import type { AdminProviderDto, ServiceTypeDto } from '@/lib/api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // ── Types ────────────────────────────────────────────────────────
 interface ServiceType {
@@ -47,6 +48,57 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
       <p className="text-slate-500 text-sm font-medium mb-1">{label}</p>
       <h3 className="text-3xl font-black text-slate-900 dark:text-white">{value}</h3>
     </div>
+  );
+}
+
+function ServiceTypeTreeSkeleton() {
+  return (
+    <div className="space-y-4" aria-label="Loading service types">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-xl" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-4 w-72 max-w-full" />
+              </div>
+              <Skeleton className="h-8 w-20 rounded-full" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProviderTableSkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <tr key={index} className="border-b border-slate-100 dark:border-slate-800/50">
+          <td className="p-4 min-w-72">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-52" />
+              </div>
+            </div>
+          </td>
+          <td className="p-4"><Skeleton className="h-4 w-24" /></td>
+          <td className="p-4"><Skeleton className="h-4 w-28" /></td>
+          <td className="p-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+          <td className="p-4"><Skeleton className="h-4 w-24" /></td>
+          <td className="p-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-20 rounded-lg" />
+              <Skeleton className="h-8 w-20 rounded-lg" />
+            </div>
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 
@@ -534,12 +586,7 @@ export default function AdminDashboard() {
 
       {/* Service type hierarchy */}
       <div className="space-y-4">
-        {serviceTypesLoading && (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <Grid3X3 className="w-12 h-12 mb-3 opacity-30" />
-            <p className="font-medium">Loading service types...</p>
-          </div>
-        )}
+        {serviceTypesLoading && <ServiceTypeTreeSkeleton />}
 
         {getChildTypes().map(st => (
           <div key={st.id}
@@ -666,14 +713,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {providersLoading && (
-                <tr>
-                  <td colSpan={6} className="p-10 text-center text-slate-400">
-                    <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
-                    <p className="font-medium">Loading providers...</p>
-                  </td>
-                </tr>
-              )}
+              {providersLoading && <ProviderTableSkeletonRows />}
 
               {!providersLoading && providers.map(provider => (
                 <tr key={provider.id} className="border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">

@@ -8,6 +8,10 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 export const metadata: Metadata = {
   title: "AgoraTask | Service Marketplace",
   description: "AgoraTask helps customers discover trusted specialists for home, learning, wellness, and business support with a cleaner, faster path from search to shortlist.",
+  icons: {
+    icon: "/agoratask-icon.svg",
+    shortcut: "/agoratask-icon.svg",
+  },
 };
 
 export default function RootLayout({

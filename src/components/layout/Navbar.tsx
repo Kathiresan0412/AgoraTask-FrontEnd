@@ -1,7 +1,8 @@
 "use client";
 
 import React from 'react';
-import { Zap, Menu, X } from "lucide-react";
+import Image from 'next/image';
+import { Menu, X } from "lucide-react";
 import { LoginButton } from '../auth/LoginButton';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeToggle } from './ThemeToggle';
@@ -27,12 +28,12 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href={`/${country}`} className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
-          <div className="bg-[#171717] dark:bg-white p-2 rounded-xl text-white dark:text-[#171717] shadow-sm">
-            <Zap className="w-5 h-5" />
+      <div className="container mx-auto flex h-16 items-center justify-between gap-3 px-4">
+        <Link href={`/${country}`} className="flex min-w-0 items-center gap-2.5 leading-none" onClick={() => setMobileOpen(false)}>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+            <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
           </div>
-          <span className="text-xl font-extrabold tracking-tight">AgoraTask</span>
+          <span className="truncate text-lg font-extrabold tracking-tight sm:text-xl">AgoraTask</span>
         </Link>
         
         <nav className="hidden md:flex gap-8 items-center font-medium text-sm text-neutral-500 dark:text-neutral-400">
@@ -56,8 +57,8 @@ export function Navbar() {
           </button>
         </div>
       </div>
-      {mobileOpen && (
-        <nav className="border-t border-neutral-200/60 bg-white px-4 py-3 shadow-sm dark:border-neutral-800/60 dark:bg-neutral-950 md:hidden">
+       {mobileOpen && (
+       /* <nav className="border-t border-neutral-200/60 bg-white px-4 py-3 shadow-sm dark:border-neutral-800/60 dark:bg-neutral-950 md:hidden">
           <div className="container mx-auto flex flex-col gap-1">
             {navLinks.map(link => (
               <Link
@@ -70,7 +71,8 @@ export function Navbar() {
               </Link>
             ))}
           </div>
-        </nav>
+        </nav> */
+        <></>
       )}
     </header>
   );

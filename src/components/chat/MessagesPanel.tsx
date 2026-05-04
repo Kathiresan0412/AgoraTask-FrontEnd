@@ -5,6 +5,7 @@ import { Check, Edit2, RefreshCw, Send, Trash2, X } from 'lucide-react';
 import { Button, Input } from 'geist/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function MessagesPanel() {
   const { user } = useAuth();
@@ -257,19 +258,27 @@ export function MessagesPanel() {
       </div>
 
       {inbox.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 flex flex-col items-center text-slate-400 shadow-sm">
-          {isLoading ? (
-            <>
-              <RefreshCw className="w-8 h-8 mb-3 animate-spin opacity-40" />
-              <p className="font-medium">Loading conversations...</p>
-            </>
-          ) : (
-            <>
-              <span className="text-4xl mb-3">💬</span>
-              <p className="font-medium">No conversations yet.</p>
-            </>
-          )}
-        </div>
+        isLoading ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Loading conversations">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 last:border-0 dark:border-slate-800 sm:gap-4 sm:px-5">
+                <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                  <Skeleton className="h-3 w-4/5" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 flex flex-col items-center text-slate-400 shadow-sm">
+            <span className="text-4xl mb-3">💬</span>
+            <p className="font-medium">No conversations yet.</p>
+          </div>
+        )
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
           {inbox.map(c => {

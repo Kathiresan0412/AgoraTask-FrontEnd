@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { publicServiceApi, reviewApi, PublicProviderDto, PublicServiceDto, ReviewDto } from '@/lib/api';
 import { formatServicePrice } from '@/lib/countries';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Provider';
 
@@ -39,6 +40,65 @@ const mapReview = (review: ReviewDto): Review => {
     isMine: review.isMine,
   };
 };
+
+const getApiErrorMessage = (err: unknown) => {
+  if (typeof err === 'object' && err && 'response' in err) {
+    const response = (err as { response?: { data?: { error?: unknown } } }).response;
+    if (typeof response?.data?.error === 'string') return response.data.error;
+  }
+  return null;
+};
+
+function ProviderProfileSkeleton() {
+  return (
+    <>
+      <Skeleton className="h-64 w-full rounded-none bg-slate-800 md:h-80" />
+      <div className="container relative z-10 mx-auto -mt-24 max-w-5xl px-4 pb-20">
+        <div className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none md:p-10">
+          <div className="mb-8 flex flex-col gap-6 border-b border-slate-100 pb-8 dark:border-slate-800 md:flex-row md:items-center md:gap-10">
+            <Skeleton className="h-32 w-32 shrink-0 rounded-full border-4 border-white dark:border-slate-900 md:h-40 md:w-40" />
+            <div className="flex-1 space-y-4">
+              <Skeleton className="h-10 w-64" />
+              <Skeleton className="h-5 w-full max-w-xl" />
+              <div className="flex flex-wrap gap-4">
+                <Skeleton className="h-10 w-32 rounded-full" />
+                <Skeleton className="h-10 w-44 rounded-full" />
+                <Skeleton className="h-10 w-40 rounded-full" />
+              </div>
+            </div>
+            <div className="flex w-full flex-col gap-3 md:w-36">
+              <Skeleton className="h-12 rounded-xl" />
+              <Skeleton className="h-12 rounded-xl" />
+            </div>
+          </div>
+          <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+            <div>
+              <Skeleton className="mb-6 h-8 w-48" />
+              <div className="grid gap-6 md:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-6 dark:border-slate-800 dark:bg-slate-900/50">
+                    <Skeleton className="mb-4 h-12 w-12 rounded-xl" />
+                    <Skeleton className="mb-3 h-6 w-4/5" />
+                    <Skeleton className="mb-2 h-4 w-full" />
+                    <Skeleton className="mb-6 h-4 w-2/3" />
+                    <div className="flex items-center justify-between border-t border-slate-200/60 pt-4 dark:border-slate-800">
+                      <Skeleton className="h-6 w-24" />
+                      <Skeleton className="h-6 w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <aside className="space-y-6">
+              <Skeleton className="h-56 rounded-2xl" />
+              <Skeleton className="h-64 rounded-2xl" />
+            </aside>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function ProviderProfilePage() {
   const params = useParams<{ country?: string; slug?: string }>();
@@ -226,8 +286,8 @@ export default function ProviderProfilePage() {
       setReviews([mapReview(data), ...reviews]);
       resetReviewForm();
       setReviewNotice('Review added.');
-    } catch (err: any) {
-      setReviewNotice(err?.response?.data?.error || 'Could not save review to the API.');
+    } catch (err: unknown) {
+      setReviewNotice(getApiErrorMessage(err) || 'Could not save review to the API.');
     }
   };
 
@@ -246,12 +306,7 @@ export default function ProviderProfilePage() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
         <Navbar />
-        <main className="container mx-auto px-4 max-w-5xl py-20">
-          <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-10 text-center">
-            <p className="font-bold text-lg">Loading provider...</p>
-            <p className="text-sm text-slate-500 mt-2">Fetching the profile from the API.</p>
-          </div>
-        </main>
+        <ProviderProfileSkeleton />
         <Footer />
       </div>
     );

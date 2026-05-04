@@ -16,6 +16,7 @@ import { providerApi, serviceTypeApi } from '@/lib/api';
 import type { ProviderServiceDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, getLocationLabel, normalizeCountryCode } from '@/lib/locations';
 import { formatServicePrice } from '@/lib/countries';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type Section = 'overview' | 'services' | 'bookings' | 'messages' | 'earnings' | 'settings';
 
@@ -66,6 +67,24 @@ function StatCard({ label, value, icon: Icon, accent }: {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{label}</p>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">{value}</h3>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProviderServiceSkeleton() {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-3">
+          <Skeleton className="h-5 w-3/5" />
+          <Skeleton className="h-4 w-full" />
+        </div>
+        <Skeleton className="h-7 w-20 rounded-full" />
+      </div>
+      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+        <Skeleton className="h-6 w-24" />
+        <Skeleton className="h-4 w-28" />
       </div>
     </div>
   );
@@ -261,7 +280,17 @@ export default function ProviderDashboard() {
       <h2 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Service Activity</h2>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
         {servicesLoading ? (
-          <p>Loading services...</p>
+          <div className="space-y-3" aria-label="Loading services">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="flex flex-col gap-2 rounded-xl border border-slate-100 p-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <Skeleton className="h-5 w-24" />
+              </div>
+            ))}
+          </div>
         ) : services.length === 0 ? (
           <p>No provider services were returned by the API.</p>
         ) : (
@@ -549,7 +578,7 @@ export default function ProviderDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {servicesLoading && <p className="text-slate-500">Loading services...</p>}
+        {servicesLoading && Array.from({ length: 4 }).map((_, index) => <ProviderServiceSkeleton key={index} />)}
         {!servicesLoading && services.map(service => (
           <div key={service.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

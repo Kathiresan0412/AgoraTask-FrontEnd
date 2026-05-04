@@ -5,9 +5,12 @@ import { ArrowRight, Tag } from "lucide-react";
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { serviceTypeApi, ServiceTypeDto } from '@/lib/api';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function Categories() {
   const params = useParams<{ country?: string }>();
+  const { t } = useLanguage();
   const country = params.country || 'lk';
   const [categories, setCategories] = useState<ServiceTypeDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,21 +41,28 @@ export function Categories() {
       <div className="container mx-auto px-4">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight mb-2 text-[#171717] dark:text-white">Explore Categories</h2>
-            <p className="text-neutral-500 dark:text-neutral-400">Find the right service provider for your specific needs</p>
+            <h2 className="text-3xl font-bold tracking-tight mb-2 text-[#171717] dark:text-white">
+              {t('home.categories.title')}
+            </h2>
+            <p className="text-neutral-500 dark:text-neutral-400">{t('home.categories.subtitle')}</p>
           </div>
           <Link href={`/${country}/services`} className="hidden md:flex items-center gap-2 text-[#171717] dark:text-white font-semibold hover:gap-3 transition-all">
-            View all <ArrowRight className="w-4 h-4" />
+            {t('home.categories.viewAll')} <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
         
         {loading ? (
-          <div className="rounded-2xl border border-neutral-200 bg-[#F9FAFB] p-8 text-center text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
-            Loading categories...
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8" aria-label={t('home.categories.loading')}>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="flex flex-col items-center justify-center rounded-3xl border border-neutral-200/60 bg-[#F9FAFB] p-6 dark:border-neutral-800 dark:bg-neutral-950">
+                <Skeleton className="mb-4 h-16 w-16 rounded-3xl bg-neutral-200 dark:bg-neutral-800" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
           </div>
         ) : categories.length === 0 ? (
           <div className="rounded-2xl border border-neutral-200 bg-[#F9FAFB] p-8 text-center text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
-            No categories found.
+            {t('home.categories.empty')}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
