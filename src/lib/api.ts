@@ -216,6 +216,36 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface ReviewDto {
+  id: string;
+  bookingId: string | null;
+  providerServiceId: string | null;
+  providerId: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  customerProfileImage: string;
+  rating: number;
+  comment: string;
+  status: 'pending' | 'visible' | 'hidden' | 'deleted';
+  createdAt: string;
+  updatedAt: string;
+  isMine?: boolean;
+}
+
+export interface ReviewPayload {
+  providerId?: string;
+  providerServiceId?: string;
+  bookingId?: string | null;
+  rating: number;
+  comment?: string;
+}
+
+export interface ReviewTarget {
+  providerId?: string;
+  providerServiceId?: string;
+}
+
 export const authApi = {
   login: (data: LoginPayload) =>
     api.post<AuthResponse>('/auth/login', data),
@@ -292,6 +322,35 @@ export const publicServiceApi = {
 
   getService: (slug: string) =>
     api.get<PublicServiceDto>(`/v1/services/${slug}`),
+};
+
+export const reviewApi = {
+  list: (target: ReviewTarget) =>
+    api.get<ReviewDto[]>('/v1/reviews', { params: target }),
+
+  listProvider: (providerId: string) =>
+    api.get<ReviewDto[]>(`/v1/reviews/providers/${providerId}`),
+
+  listService: (providerServiceId: string) =>
+    api.get<ReviewDto[]>(`/v1/reviews/services/${providerServiceId}`),
+
+  getMine: (target: ReviewTarget) =>
+    api.get<ReviewDto>('/v1/reviews/my', { params: target }),
+
+  create: (data: ReviewPayload) =>
+    api.post<ReviewDto>('/v1/reviews', data),
+
+  createForProvider: (providerId: string, data: Omit<ReviewPayload, 'providerId' | 'providerServiceId'>) =>
+    api.post<ReviewDto>(`/v1/reviews/providers/${providerId}`, data),
+
+  createForService: (providerServiceId: string, data: Omit<ReviewPayload, 'providerId' | 'providerServiceId'>) =>
+    api.post<ReviewDto>(`/v1/reviews/services/${providerServiceId}`, data),
+
+  update: (reviewId: string, data: Partial<Pick<ReviewPayload, 'rating' | 'comment'>>) =>
+    api.put<ReviewDto>(`/v1/reviews/${reviewId}`, data),
+
+  delete: (reviewId: string) =>
+    api.delete<{ success: boolean }>(`/v1/reviews/${reviewId}`),
 };
 
 export default api;

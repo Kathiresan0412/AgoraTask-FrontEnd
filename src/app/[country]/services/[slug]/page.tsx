@@ -5,13 +5,12 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { publicServiceApi } from '@/lib/api';
-import type { PublicServiceDto } from '@/lib/api';
+import { publicServiceApi, reviewApi } from '@/lib/api';
+import type { PublicServiceDto, ReviewDto } from '@/lib/api';
 import { AlertCircle, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatServicePrice } from '@/lib/countries';
-import { createClientId } from '@/lib/utils';
 
 type Review = {
   id: string;
@@ -20,19 +19,23 @@ type Review = {
   rating: number;
   comment: string;
   date: string;
+  isMine?: boolean;
 };
 
-const loadSavedReviews = (serviceId: string) => {
-  if (typeof window === 'undefined') return [];
+const formatReviewDate = (value: string) => {
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
 
-  const saved = window.localStorage.getItem(`agoratask_service_reviews_${serviceId}`);
-  if (!saved) return [];
-
-  try {
-    return JSON.parse(saved) as Review[];
-  } catch {
-    return [];
-  }
+const mapReview = (review: ReviewDto): Review => {
+  return {
+    id: review.id,
+    customer: review.customerName,
+    customerEmail: review.customerEmail,
+    rating: review.rating,
+    comment: review.comment,
+    date: formatReviewDate(review.updatedAt || review.createdAt),
+    isMine: review.isMine,
+  };
 };
 
 const formatDuration = (minutes: number | null) => {
@@ -70,7 +73,10 @@ export default function ServiceDetailPage() {
         if (cancelled) return;
 
         setService(data);
-        setReviews(loadSavedReviews(data.id));
+        const { data: apiReviews } = await reviewApi.listService(data.id);
+        if (!cancelled) {
+          setReviews(apiReviews.map(mapReview));
+        }
       } catch {
         if (!cancelled) {
           setError('Could not load this service from the API.');
@@ -97,17 +103,10 @@ export default function ServiceDetailPage() {
   }, [reviews]);
 
   const canManageReview = (review: Review) => Boolean(
-    user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name))
+    review.isMine || (user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name)))
   );
 
   const userReview = reviews.find(canManageReview);
-
-  const saveReviews = (nextReviews: Review[]) => {
-    if (!service) return;
-
-    setReviews(nextReviews);
-    localStorage.setItem(`agoratask_service_reviews_${service.id}`, JSON.stringify(nextReviews));
-  };
 
   const resetReviewForm = () => {
     setReviewComment('');
@@ -132,13 +131,18 @@ export default function ServiceDetailPage() {
     setIsReviewFormOpen(true);
   };
 
-  const handleDeleteReview = (reviewId: string) => {
-    saveReviews(reviews.filter(review => review.id !== reviewId));
-    resetReviewForm();
-    setReviewNotice('Review deleted from this device.');
+  const handleDeleteReview = async (reviewId: string) => {
+    try {
+      await reviewApi.delete(reviewId);
+      setReviews(reviews.filter(review => review.id !== reviewId));
+      resetReviewForm();
+      setReviewNotice('Review deleted.');
+    } catch {
+      setReviewNotice('Could not delete review from the API.');
+    }
   };
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!service) return;
 
     if (!user) {
@@ -156,34 +160,31 @@ export default function ServiceDetailPage() {
       return;
     }
 
-    const reviewDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
     const reviewIdToUpdate = editingReviewId ?? userReview?.id;
 
-    if (reviewIdToUpdate) {
-      saveReviews(reviews.map(review => review.id === reviewIdToUpdate ? {
-        ...review,
-        customerEmail: user.email,
+    try {
+      if (reviewIdToUpdate) {
+        const { data } = await reviewApi.update(reviewIdToUpdate, {
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+        });
+        const nextReview = mapReview(data);
+        setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
+        resetReviewForm();
+        setReviewNotice('Review updated.');
+        return;
+      }
+
+      const { data } = await reviewApi.createForService(service.id, {
         rating: reviewRating,
         comment: reviewComment.trim(),
-        date: reviewDate,
-      } : review));
+      });
+      setReviews([mapReview(data), ...reviews]);
       resetReviewForm();
-      setReviewNotice('Review updated on this device.');
-      return;
+      setReviewNotice('Review added.');
+    } catch (err: any) {
+      setReviewNotice(err?.response?.data?.error || 'Could not save review to the API.');
     }
-
-    const nextReview: Review = {
-      id: createClientId('review'),
-      customer: user.name,
-      customerEmail: user.email,
-      rating: reviewRating,
-      comment: reviewComment.trim(),
-      date: reviewDate,
-    };
-    saveReviews([nextReview, ...reviews]);
-    resetReviewForm();
-    setReviewNotice('Review added on this device. Backend should verify a completed booking before saving permanently.');
   };
 
   const handleBookService = () => {

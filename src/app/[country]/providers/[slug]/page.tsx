@@ -9,9 +9,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
-import { publicServiceApi, PublicProviderDto, PublicServiceDto } from '@/lib/api';
+import { publicServiceApi, reviewApi, PublicProviderDto, PublicServiceDto, ReviewDto } from '@/lib/api';
 import { formatServicePrice } from '@/lib/countries';
-import { createClientId } from '@/lib/utils';
 
 const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Provider';
 
@@ -22,19 +21,23 @@ type Review = {
   rating: number;
   comment: string;
   date: string;
+  isMine?: boolean;
 };
 
-const loadSavedReviews = (providerEmail: string) => {
-  if (typeof window === 'undefined') return [];
+const formatReviewDate = (value: string) => {
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
 
-  const saved = window.localStorage.getItem(`agoratask_reviews_${providerEmail}`);
-  if (!saved) return [];
-
-  try {
-    return JSON.parse(saved) as Review[];
-  } catch {
-    return [];
-  }
+const mapReview = (review: ReviewDto): Review => {
+  return {
+    id: review.id,
+    customer: review.customerName,
+    customerEmail: review.customerEmail,
+    rating: review.rating,
+    comment: review.comment,
+    date: formatReviewDate(review.updatedAt || review.createdAt),
+    isMine: review.isMine,
+  };
 };
 
 export default function ProviderProfilePage() {
@@ -71,7 +74,10 @@ export default function ProviderProfilePage() {
 
         setProvider(data);
         setMessageText(`Hi ${data.name}, I would like to ask about your services.`);
-        setReviews(loadSavedReviews(data.email));
+        const { data: apiReviews } = await reviewApi.listProvider(data.userId);
+        if (!cancelled) {
+          setReviews(apiReviews.map(mapReview));
+        }
       } catch {
         if (!cancelled) {
           setProviderError('Could not load this provider from the API.');
@@ -98,7 +104,7 @@ export default function ProviderProfilePage() {
   }, [reviews]);
 
   const canManageReview = (review: Review) => Boolean(
-    user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name))
+    review.isMine || (user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name)))
   );
 
   const userReview = reviews.find(canManageReview);
@@ -106,13 +112,6 @@ export default function ProviderProfilePage() {
   const focusMessage = () => {
     messageBoxRef.current?.focus();
     messageBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  const saveReviews = (nextReviews: Review[]) => {
-    if (!provider) return;
-
-    setReviews(nextReviews);
-    localStorage.setItem(`agoratask_reviews_${provider.email}`, JSON.stringify(nextReviews));
   };
 
   const resetReviewForm = () => {
@@ -138,10 +137,15 @@ export default function ProviderProfilePage() {
     setIsReviewFormOpen(true);
   };
 
-  const handleDeleteReview = (reviewId: string) => {
-    saveReviews(reviews.filter(review => review.id !== reviewId));
-    resetReviewForm();
-    setReviewNotice('Review deleted from this device.');
+  const handleDeleteReview = async (reviewId: string) => {
+    try {
+      await reviewApi.delete(reviewId);
+      setReviews(reviews.filter(review => review.id !== reviewId));
+      resetReviewForm();
+      setReviewNotice('Review deleted.');
+    } catch {
+      setReviewNotice('Could not delete review from the API.');
+    }
   };
 
   const handleBookNow = () => {
@@ -182,7 +186,7 @@ export default function ProviderProfilePage() {
     }
   };
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!provider) return;
 
     if (!user) {
@@ -200,34 +204,31 @@ export default function ProviderProfilePage() {
       return;
     }
 
-    const reviewDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
     const reviewIdToUpdate = editingReviewId ?? userReview?.id;
 
-    if (reviewIdToUpdate) {
-      saveReviews(reviews.map(review => review.id === reviewIdToUpdate ? {
-        ...review,
-        customerEmail: user.email,
+    try {
+      if (reviewIdToUpdate) {
+        const { data } = await reviewApi.update(reviewIdToUpdate, {
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+        });
+        const nextReview = mapReview(data);
+        setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
+        resetReviewForm();
+        setReviewNotice('Review updated.');
+        return;
+      }
+
+      const { data } = await reviewApi.createForProvider(provider.userId, {
         rating: reviewRating,
         comment: reviewComment.trim(),
-        date: reviewDate,
-      } : review));
+      });
+      setReviews([mapReview(data), ...reviews]);
       resetReviewForm();
-      setReviewNotice('Review updated on this device.');
-      return;
+      setReviewNotice('Review added.');
+    } catch (err: any) {
+      setReviewNotice(err?.response?.data?.error || 'Could not save review to the API.');
     }
-
-    const nextReview: Review = {
-      id: createClientId('review'),
-      customer: user.name,
-      customerEmail: user.email,
-      rating: reviewRating,
-      comment: reviewComment.trim(),
-      date: reviewDate,
-    };
-    saveReviews([nextReview, ...reviews]);
-    resetReviewForm();
-    setReviewNotice('Review added on this device. Backend review storage still needs the API route.');
   };
 
   const formatPrice = (service: PublicServiceDto) => {
