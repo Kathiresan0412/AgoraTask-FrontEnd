@@ -1,4 +1,4 @@
-import { normalizeCountryCode } from './locations';
+export type SupportedCountryCode = 'lk' | 'ca';
 
 export interface CountryConfig {
   code: string;
@@ -30,6 +30,9 @@ const countryConfigs: Record<string, CountryConfig> = {
     localityLabel: 'city',
   },
 };
+
+export const normalizeCountryCode = (country?: string): SupportedCountryCode =>
+  country?.toLowerCase() === 'ca' ? 'ca' : 'lk';
 
 export const getCountryConfig = (country?: string): CountryConfig => {
   const normalized = normalizeCountryCode(country);

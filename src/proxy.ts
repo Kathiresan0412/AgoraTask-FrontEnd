@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Match common 2-letter country codes
-const countryRegex = /^\/[a-zA-Z]{2}(\/|$)/;
+const supportedCountryRegex = /^\/(lk|ca)(\/|$)/i;
+const defaultCountryCode = 'lk';
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -17,23 +17,26 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if the pathname already starts with a country code (e.g. /lk, /uk, /us)
-  if (countryRegex.test(pathname)) {
+  // Check if the pathname already starts with a supported country code.
+  if (supportedCountryRegex.test(pathname)) {
     return NextResponse.next();
   }
 
   const geoRequest = request as NextRequest & { geo?: { country?: string } };
-  let countryCode = geoRequest.geo?.country?.toLowerCase();
+  const geoCountryCode = geoRequest.geo?.country?.toLowerCase();
+  let countryCode = geoCountryCode === 'ca' ? 'ca' : geoCountryCode === 'lk' ? 'lk' : undefined;
 
-  // If geo is not available (e.g., local development), fetch from IP API
-  if (!countryCode) {
+  // Local development does not provide geo data. Avoid blocking every first
+  // uncategorized route on a third-party IP lookup.
+  if (!countryCode && process.env.NODE_ENV === 'production') {
     try {
       // Using ipapi.co (free, no key required for low volume)
       const res = await fetch('https://ipapi.co/json/');
       if (res.ok) {
         const data = await res.json();
-        if (data && data.country_code) {
-          countryCode = data.country_code.toLowerCase();
+        const detectedCountryCode = data?.country_code?.toLowerCase();
+        if (detectedCountryCode === 'ca' || detectedCountryCode === 'lk') {
+          countryCode = detectedCountryCode;
         }
       }
     } catch (e) {
@@ -43,7 +46,7 @@ export async function proxy(request: NextRequest) {
 
   // Default fallback if detection fails
   if (!countryCode) {
-    countryCode = 'lk'; // default to Sri Lanka
+    countryCode = defaultCountryCode;
   }
 
   // Redirect to the URL prefixed with the detected country code

@@ -1,5 +1,7 @@
 import canadaLocationsData from '@/data/canada-locations.json';
 import sriLankaLocationsData from '@/data/sri-lanka-locations.json';
+import { normalizeCountryCode, type SupportedCountryCode } from './countries';
+export { normalizeCountryCode } from './countries';
 
 export interface CityOption {
   id: string;
@@ -28,7 +30,6 @@ export interface ProvinceOption {
   districts: DistrictOption[];
 }
 
-export type SupportedCountryCode = 'lk' | 'ca';
 export type NearestLocation = {
   provinceId: string;
   districtId: string;
@@ -43,9 +44,6 @@ const locationsByCountry: Record<SupportedCountryCode, ProvinceOption[]> = {
   lk: sriLankaLocations,
   ca: canadaLocations,
 };
-
-export const normalizeCountryCode = (country?: string): SupportedCountryCode =>
-  country?.toLowerCase() === 'ca' ? 'ca' : 'lk';
 
 export const getCountryLocations = (country?: string) =>
   locationsByCountry[normalizeCountryCode(country)];
