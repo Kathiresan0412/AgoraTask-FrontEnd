@@ -38,27 +38,20 @@ export function PopularServices() {
     };
   }, []);
 
+  if (!loading && (error || services.length === 0)) {
+    return null;
+  }
+
   return (
     <section className="py-24 px-4 bg-[#F9FAFB] dark:bg-neutral-950">
       <div className="container mx-auto">
         <div className="flex flex-col items-center text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-[#171717] dark:text-white">{t('home.popularServices')}</h2>
-          <p className="text-neutral-500 dark:text-neutral-400 max-w-2xl text-lg">Services are loaded from the marketplace API.</p>
         </div>
-
-        {error && (
-          <div className="mx-auto max-w-2xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {error}
-          </div>
-        )}
 
         {loading ? (
           <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
             {t('common.loading')}
-          </div>
-        ) : services.length === 0 ? (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-10 text-center text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
-            {t('common.noResults')}
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">

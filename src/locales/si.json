@@ -43,6 +43,7 @@
     "heroTitle": "විශ්වාසනීය ප්‍රාදේශීය සේවා සොයන්න",
     "heroSubtitle": "ගෙදර අලුත්වැඩියා, පිරිසිදු කිරීම, නඩත්තු සහ තවත් බොහෝ දේ සඳහා ඔබට ආසන්න සත්‍යාපිත සේවා සපයන්නන් සමඟ සම්බන්ධ වන්න.",
     "searchPlaceholder": "ඔබ කුමන සේවාවක් සොයනවාද?",
+    "searchLocationPlaceholder":"ඔබ කොහේ සොයනවාද?",
     "popularServices": "ජනප්‍රිය සේවාවන්",
     "howItWorks": "මෙය ක්‍රියා කරන ආකාරය",
     "step1Title": "සොයන්න",
@@ -54,7 +55,15 @@
     "featuredProviders": "විශේෂිත සපයන්නන්",
     "viewAll": "සියල්ල බලන්න",
     "getStarted": "ආරම්භ කරන්න",
-    "learnMore": "තව දැනගන්න"
+    "learnMore": "තව දැනගන්න",
+    "instantBooking": "ක්ෂණික වෙන්කිරීම",
+    "trustedProviders": "විශ්වාසනීය සපයන්නන්",
+    "transparentReviews": "ස්ථානික සමාජ අදහස්",
+    "verifiedPros": "සත්‍යාපිත වෘත්තිකයින්",
+    "verifiedPLocalProfessionals": "සත්‍යාපිත ප්‍රාදේශීය වෘත්තිකයින්",
+    "areYouAServiceProvider": "ඔබ සේවා සපයන්නෙකුද?",
+    "JoinAgoraTaskCTA": "අදම AgoraTask වෙත සම්බන්ධ වන්න. ඔබේ ව්‍යාපාරය වර්ධනය කරන්න, වෙන්කිරීම් කළමනාකරණය කරන්න, සහ නව ගනුදෙනුකරුවන් දහස් ගණනකට ළඟා වන්න.",
+    "RegisterAsProfessional": "වෘත්තිකයෙකු ලෙස ලියාපදිංචි වන්න"
   },
   "login": {
     "title": "නැවත සාදරයෙන් පිළිගනිමු",

@@ -43,6 +43,7 @@
     "heroTitle": "Find Trusted Local Services",
     "heroSubtitle": "Connect with verified service providers near you for home repairs, cleaning, maintenance and more.",
     "searchPlaceholder": "What service are you looking for?",
+    "searchLocationPlaceholder":"where are you looking for?",
     "popularServices": "Popular Services",
     "howItWorks": "How It Works",
     "step1Title": "Search",
@@ -54,7 +55,16 @@
     "featuredProviders": "Featured Providers",
     "viewAll": "View All",
     "getStarted": "Get Started",
-    "learnMore": "Learn More"
+    "learnMore": "Learn More",
+    "instantBooking": "Instant Booking",
+    "trustedProviders": "Trusted Providers",
+    "transparentReviews": "Transparent Reviews",
+    "verifiedPros": "Verified Pros",
+    "verifiedPLocalProfessionals": "Verified Local Professionals",
+    "areYouAServiceProvider": "Are you a Service Provider?",
+    "JoinAgoraTaskCTA": "Join AgoraTask today. Grow your business, manage bookings, and reach thousands of new customers.",
+    "RegisterAsProfessional": "Register as a Professional"
+
   },
   "login": {
     "title": "Welcome back",
