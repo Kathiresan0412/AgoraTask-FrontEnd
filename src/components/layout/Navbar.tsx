@@ -17,6 +17,7 @@ export function Navbar() {
   const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const isLoginPage = pathname === `/${country}/login`;
+  const isRegisterPage = pathname === `/${country}/register`;
 
   const navLinks = [
     { href: `/${country}/services`, label: t('nav.services') },
@@ -47,7 +48,7 @@ export function Navbar() {
         <div className="flex items-center gap-2 sm:gap-4">
           <ThemeToggle />
           <LanguageSwitcher />
-          {!isLoginPage && <LoginButton />}
+          {!isLoginPage && !isRegisterPage && <LoginButton />}
           <button
             type="button"
             onClick={() => setMobileOpen(open => !open)}
