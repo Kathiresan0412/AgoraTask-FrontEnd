@@ -8,13 +8,15 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeToggle } from './ThemeToggle';
 import { useLanguage } from '@/contexts/LanguageContext';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 
 export function Navbar() {
   const params = useParams();
   const country = params?.country || 'lk';
+  const pathname = usePathname();
   const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const isLoginPage = pathname === `/${country}/login`;
 
   const navLinks = [
     { href: `/${country}/services`, label: t('nav.services') },
@@ -45,7 +47,7 @@ export function Navbar() {
         <div className="flex items-center gap-2 sm:gap-4">
           <ThemeToggle />
           <LanguageSwitcher />
-          <LoginButton />
+          {!isLoginPage && <LoginButton />}
           <button
             type="button"
             onClick={() => setMobileOpen(open => !open)}
@@ -58,7 +60,7 @@ export function Navbar() {
         </div>
       </div>
        {mobileOpen && (
-       /* <nav className="border-t border-neutral-200/60 bg-white px-4 py-3 shadow-sm dark:border-neutral-800/60 dark:bg-neutral-950 md:hidden">
+       <nav className="border-t border-neutral-200/60 bg-white px-4 py-3 shadow-sm dark:border-neutral-800/60 dark:bg-neutral-950 md:hidden">
           <div className="container mx-auto flex flex-col gap-1">
             {navLinks.map(link => (
               <Link
@@ -71,8 +73,7 @@ export function Navbar() {
               </Link>
             ))}
           </div>
-        </nav> */
-        <></>
+        </nav>
       )}
     </header>
   );

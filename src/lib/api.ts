@@ -48,6 +48,11 @@ export interface RegisterPayload {
   role: 'customer' | 'provider';
 }
 
+export interface GoogleLoginPayload {
+  credential: string;
+  role?: 'customer' | 'provider';
+}
+
 export interface AuthResponse {
   token: string;
   user: {
@@ -252,6 +257,9 @@ export const authApi = {
 
   register: (data: RegisterPayload) =>
     api.post<AuthResponse>('/auth/register', data),
+
+  googleLogin: (data: GoogleLoginPayload) =>
+    api.post<AuthResponse>('/auth/google', data),
 
   getMe: () =>
     api.get<AuthResponse['user']>('/auth/me'),

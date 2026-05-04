@@ -86,7 +86,9 @@
     "forgotPassword": "Forgot password?",
     "noAccount": "Don't have an account?",
     "signUpHere": "Sign up here",
-    "googleComingSoon": "Google (coming soon)",
+    "googleComingSoon": "Continue with Google",
+    "googleError": "Google sign-in failed. Please try again.",
+    "googleNotConfigured": "Google sign-in is not configured",
     "orContinueWith": "Or continue with",
     "invalidCredentials": "Invalid email or password."
   },

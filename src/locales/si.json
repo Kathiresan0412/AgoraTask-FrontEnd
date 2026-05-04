@@ -79,13 +79,15 @@
   "login": {
     "title": "නැවත සාදරයෙන් පිළිගනිමු",
     "subtitle": "ඔබගේ AgoraTask ගිණුමට පිවිසෙන්න",
-    "emailPlaceholder": "Email address",
+    "emailPlaceholder": "ඔබගේ ඊමේල් ලිපිනය",
     "passwordPlaceholder": "ඔබගේ මුරපදය ඇතුළත් කරන්න",
     "rememberMe": "මාව මතක තබාගන්න",
     "forgotPassword": "මුරපදය අමතකද?",
     "noAccount": "ගිණුමක් නැද්ද?",
     "signUpHere": "මෙතැනින් ලියාපදිංචි වන්න",
-    "googleComingSoon": "Google (ඉක්මනින්)",
+    "googleComingSoon": "Google සමඟ ඉදිරියට යන්න",
+    "googleError": "Google පිවිසුම අසාර්ථක විය. නැවත උත්සාහ කරන්න.",
+    "googleNotConfigured": "Google පිවිසුම සකසා නැත",
     "orContinueWith": "නැතහොත් මෙයින් ඉදිරියට යන්න",
     "invalidCredentials": "වැරදි ඊමේල් හෝ මුරපදය."
   },

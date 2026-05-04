@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { authApi, LoginPayload, RegisterPayload } from '@/lib/api';
+import { authApi, GoogleLoginPayload, LoginPayload, RegisterPayload } from '@/lib/api';
 
 export type Role = 'customer' | 'provider' | 'admin';
 
@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
+  googleLogin: (payload: GoogleLoginPayload) => Promise<void>;
   logout: () => void;
   updateProfile: (name: string, profileImage: string) => void;
 }
@@ -101,6 +102,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const googleLogin = useCallback(async (payload: GoogleLoginPayload) => {
+    setIsLoading(true);
+    try {
+      const { data } = await authApi.googleLogin(payload);
+      const googleUser: UserProfile = {
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        role: data.user.role as Role,
+        profileImage: data.user.profileImage,
+      };
+      localStorage.setItem('agoratask_token', data.token);
+      localStorage.setItem('agoratask_user', JSON.stringify(googleUser));
+      setUser(googleUser);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('agoratask_token');
@@ -118,7 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   if (!isInitialized) return null;
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, googleLogin, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
