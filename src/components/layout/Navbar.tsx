@@ -35,7 +35,7 @@ export function Navbar() {
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
             <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
           </div>
-          <span className="truncate text-lg font-extrabold tracking-tight sm:text-xl">AgoraTask</span>
+          <span className="truncate text-lg font-extrabold tracking-tight sm:text-xl">Agora Task</span>
         </Link>
         
         <nav className="hidden md:flex gap-8 items-center font-medium text-sm text-neutral-500 dark:text-neutral-400">
