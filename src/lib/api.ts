@@ -319,6 +319,12 @@ export const providerApi = {
 
   createService: (data: ProviderServicePayload) =>
     api.post<ProviderServiceDto>('/provider/services', data),
+
+  updateService: (id: string, data: ProviderServicePayload) =>
+    api.put<ProviderServiceDto>(`/provider/services/${id}`, data),
+
+  deleteService: (id: string) =>
+    api.delete<{ success: boolean }>(`/provider/services/${id}`),
 };
 
 export const publicServiceApi = {

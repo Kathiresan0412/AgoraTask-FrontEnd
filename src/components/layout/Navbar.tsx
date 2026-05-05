@@ -7,6 +7,7 @@ import { LoginButton } from '../auth/LoginButton';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ThemeToggle } from './ThemeToggle';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 
@@ -15,16 +16,20 @@ export function Navbar() {
   const country = params?.country || 'lk';
   const pathname = usePathname();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const isLoginPage = pathname === `/${country}/login`;
   const isRegisterPage = pathname === `/${country}/register`;
+  const shouldShowBecomeProvider = user?.role !== 'provider';
 
   const navLinks = [
     { href: `/${country}`, label: t('nav.home') },
-    { href: `/${country}/messages`, label: t('nav.messages') },
+    // { href: `/${country}/messages`, label: t('nav.messages') },
     { href: `/${country}/services`, label: t('nav.services') },
     { href: `/${country}/about`, label: t('nav.aboutUs') },
-    { href: `/${country}/register?role=provider`, label: t('nav.becomeProvider') },
+    ...(shouldShowBecomeProvider
+      ? [{ href: `/${country}/register?role=provider`, label: t('nav.becomeProvider') }]
+      : []),
   ];
 
   const isActiveLink = (href: string) => {
@@ -71,14 +76,14 @@ export function Navbar() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-0.1 sm:gap-2">
           <ThemeToggle />
           <LanguageSwitcher />
           {!isLoginPage && !isRegisterPage && <LoginButton />}
           <button
             type="button"
             onClick={() => setMobileOpen(open => !open)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:bg-neutral-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-white md:hidden"
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-500 hover:bg-neutral-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-white md:hidden"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
           >

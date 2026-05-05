@@ -1,24 +1,29 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Briefcase, Calendar, MessageSquare, DollarSign,
   Settings, Star, Zap,
-  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag
+  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag, Edit3, Trash2, Eye
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button, Combobox, Input, Textarea } from 'geist/components';
-import { providerApi, serviceTypeApi } from '@/lib/api';
-import type { ProviderServiceDto, ServiceTypeDto } from '@/lib/api';
+import { providerApi, reviewApi, serviceTypeApi } from '@/lib/api';
+import type { ProviderServiceDto, ReviewDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, getLocationLabel, normalizeCountryCode } from '@/lib/locations';
 import { formatServicePrice } from '@/lib/countries';
 import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image';
 
 type Section = 'overview' | 'services' | 'bookings' | 'messages' | 'earnings' | 'settings';
+
+const SECTIONS: Section[] = ['overview', 'services', 'bookings', 'messages', 'earnings', 'settings'];
 
 const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
@@ -33,6 +38,12 @@ const isImageSource = (value?: string | null) =>
   Boolean(value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/')));
 
 const getServiceTypeImage = (type: ServiceTypeDto) => type.image_url || type.imageUrl || (isImageSource(type.icon) ? type.icon : null);
+
+const formatReviewDate = (value: string) => new Date(value).toLocaleDateString(undefined, {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+});
 
 function ServiceTypeVisual({ type, selected = false }: { type: ServiceTypeDto; selected?: boolean }) {
   const image = getServiceTypeImage(type);
@@ -99,7 +110,9 @@ export default function ProviderDashboard() {
   const isCanada = countryCode === 'ca';
   const locations = getCountryLocations(countryCode);
   const router = useRouter();
-  const [section, setSection] = useState<Section>('overview');
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [section, setSection] = useState<Section>(SECTIONS.includes(tabParam as Section) ? tabParam as Section : 'overview');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [services, setServices] = useState<ProviderServiceDto[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceTypeDto[]>([]);
@@ -108,11 +121,13 @@ export default function ProviderDashboard() {
   const [servicesError, setServicesError] = useState('');
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [savingService, setSavingService] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formPrice, setFormPrice] = useState('');
   const [formPriceType, setFormPriceType] = useState<'fixed' | 'hourly' | 'quote'>('fixed');
   const [formDuration, setFormDuration] = useState('');
+  const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('active');
   const [formServiceTypeIds, setFormServiceTypeIds] = useState<string[]>([]);
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
   const [formProvinceId, setFormProvinceId] = useState('');
@@ -120,7 +135,12 @@ export default function ProviderDashboard() {
   const [formCityId, setFormCityId] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [locationMessage, setLocationMessage] = useState('');
+  const [serviceReviews, setServiceReviews] = useState<Record<string, ReviewDto[]>>({});
+  const [reviewPanelsOpen, setReviewPanelsOpen] = useState<string[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState<Record<string, boolean>>({});
+  const [reviewsError, setReviewsError] = useState<Record<string, string>>({});
   const priceTypeComboboxId = React.useId();
+  const statusComboboxId = React.useId();
   const provinceComboboxId = React.useId();
   const districtComboboxId = React.useId();
   const cityComboboxId = React.useId();
@@ -129,7 +149,17 @@ export default function ProviderDashboard() {
   const selectSection = (nextSection: Section) => {
     setSection(nextSection);
     setMobileNavOpen(false);
+    router.push(`/${country}/provider-dashboard?tab=${nextSection}`, { scroll: false });
   };
+
+  useEffect(() => {
+    if (SECTIONS.includes(tabParam as Section)) {
+      setSection(tabParam as Section);
+      return;
+    }
+
+    setSection('overview');
+  }, [tabParam]);
 
   const loadServicesData = useCallback(async () => {
     setServicesLoading(true);
@@ -170,11 +200,13 @@ export default function ProviderDashboard() {
   }, {});
 
   const resetServiceForm = () => {
+    setEditingServiceId(null);
     setFormTitle('');
     setFormDescription('');
     setFormPrice('');
     setFormPriceType('fixed');
     setFormDuration('');
+    setFormStatus('active');
     setFormServiceTypeIds([]);
     setExpandedServiceTypeIds([]);
     setFormProvinceId('');
@@ -225,7 +257,35 @@ export default function ProviderDashboard() {
     );
   };
 
-  const createService = async () => {
+  const openCreateServiceForm = () => {
+    resetServiceForm();
+    setShowServiceForm(true);
+  };
+
+  const editService = (service: ProviderServiceDto) => {
+    const area = service.service_area || [];
+    const provinceId = area.find(item => item.startsWith('province:'))?.replace('province:', '') || '';
+    const districtId = area.find(item => item.startsWith('district:'))?.replace('district:', '') || '';
+    const cityId = area.find(item => item.startsWith('city:'))?.replace('city:', '') || '';
+
+    setEditingServiceId(service.id);
+    setFormTitle(service.title);
+    setFormDescription(service.description || '');
+    setFormPrice(service.base_price === null || service.base_price === undefined ? '' : String(service.base_price));
+    setFormPriceType(service.price_type);
+    setFormDuration(service.duration_mins ? String(service.duration_mins) : '');
+    setFormStatus(service.status);
+    setFormServiceTypeIds(service.service_types.map(type => type.id));
+    setExpandedServiceTypeIds(Array.from(new Set(service.service_types.map(type => type.parent_id).filter(Boolean) as string[])));
+    setFormProvinceId(provinceId);
+    setFormDistrictId(districtId);
+    setFormCityId(cityId);
+    setLocationMessage('');
+    setServicesError('');
+    setShowServiceForm(true);
+  };
+
+  const saveService = async () => {
     if (!formTitle.trim() || formServiceTypeIds.length === 0 || !formProvinceId || !effectiveFormDistrictId || !formCityId) {
       setServicesError(isCanada
         ? 'Title, at least one service type, province/territory, and city are required.'
@@ -237,7 +297,7 @@ export default function ProviderDashboard() {
     setSavingService(true);
     setServicesError('');
     try {
-      const { data } = await providerApi.createService({
+      const payload = {
         title: formTitle.trim(),
         description: formDescription.trim(),
         base_price: formPrice ? Number(formPrice) : null,
@@ -250,18 +310,70 @@ export default function ProviderDashboard() {
           `city:${formCityId}`,
         ],
         images: [],
-        status: 'active',
+        status: formStatus,
         service_type_ids: formServiceTypeIds,
-      });
+      };
 
-      setServices(prev => [data, ...prev]);
+      const { data } = editingServiceId
+        ? await providerApi.updateService(editingServiceId, payload)
+        : await providerApi.createService(payload);
+
+      setServices(prev => editingServiceId
+        ? prev.map(service => service.id === data.id ? data : service)
+        : [data, ...prev]
+      );
       resetServiceForm();
       setShowServiceForm(false);
     } catch {
-      setServicesError('Could not create this service.');
+      setServicesError(editingServiceId ? 'Could not update this service.' : 'Could not create this service.');
     } finally {
       setSavingService(false);
     }
+  };
+
+  const deleteService = async (serviceId: string) => {
+    if (!window.confirm('Delete this service? This cannot be undone.')) return;
+
+    setServicesError('');
+    try {
+      await providerApi.deleteService(serviceId);
+      setServices(prev => prev.filter(service => service.id !== serviceId));
+      setServiceReviews(prev => {
+        const next = { ...prev };
+        delete next[serviceId];
+        return next;
+      });
+      setReviewPanelsOpen(prev => prev.filter(id => id !== serviceId));
+    } catch {
+      setServicesError('Could not delete this service.');
+    }
+  };
+
+  const loadServiceReviews = async (serviceId: string) => {
+    setReviewsLoading(prev => ({ ...prev, [serviceId]: true }));
+    setReviewsError(prev => ({ ...prev, [serviceId]: '' }));
+    try {
+      const { data } = await reviewApi.listService(serviceId);
+      setServiceReviews(prev => ({ ...prev, [serviceId]: data }));
+    } catch {
+      setReviewsError(prev => ({ ...prev, [serviceId]: 'Could not load reviews for this service.' }));
+    } finally {
+      setReviewsLoading(prev => ({ ...prev, [serviceId]: false }));
+    }
+  };
+
+  const toggleReviews = async (serviceId: string) => {
+    const isOpen = reviewPanelsOpen.includes(serviceId);
+    setReviewPanelsOpen(prev => isOpen ? prev.filter(id => id !== serviceId) : [...prev, serviceId]);
+
+    if (!isOpen && !serviceReviews[serviceId]) {
+      await loadServiceReviews(serviceId);
+    }
+  };
+
+  const getReviewAverage = (reviews: ReviewDto[]) => {
+    if (!reviews.length) return '0.0';
+    return (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1);
   };
 
   // ── Section content ──────────────────────────────────────────────
@@ -421,7 +533,7 @@ export default function ProviderDashboard() {
           <p className="text-sm text-slate-500 mt-0.5">Create services and select your exact service city.</p>
         </div>
         <Button
-          onClick={() => setShowServiceForm(prev => !prev)}
+          onClick={() => showServiceForm ? setShowServiceForm(false) : openCreateServiceForm()}
           className="w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" /> Add Service
@@ -436,7 +548,7 @@ export default function ProviderDashboard() {
 
       {showServiceForm && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-6 mb-6">
-          <h2 className="font-bold text-slate-900 dark:text-white mb-4">Create Service</h2>
+          <h2 className="font-bold text-slate-900 dark:text-white mb-4">{editingServiceId ? 'Edit Service' : 'Create Service'}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Service title" />
             <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="1" placeholder="Duration minutes" />
@@ -454,6 +566,20 @@ export default function ProviderDashboard() {
                 <Combobox.Option value="fixed">Fixed price</Combobox.Option>
                 <Combobox.Option value="hourly">Hourly</Combobox.Option>
                 <Combobox.Option value="quote">Quote</Combobox.Option>
+              </Combobox.List>
+            </Combobox>
+            <Combobox
+              id={statusComboboxId}
+              value={formStatus}
+              onValueChange={value => setFormStatus(value as ProviderServiceDto['status'])}
+              placeholder="Select status"
+            >
+              <Combobox.Input />
+              <Combobox.List>
+                <Combobox.Option value="active">Active</Combobox.Option>
+                <Combobox.Option value="draft">Draft</Combobox.Option>
+                <Combobox.Option value="paused">Paused</Combobox.Option>
+                <Combobox.Option value="pending_review">Pending review</Combobox.Option>
               </Combobox.List>
             </Combobox>
             <div className="relative">
@@ -567,8 +693,8 @@ export default function ProviderDashboard() {
             </div>
           </div>
           <div className="flex flex-col gap-3 mt-5 sm:flex-row">
-            <Button onClick={createService} disabled={savingService}>
-              <Save className="w-4 h-4" /> {savingService ? 'Saving...' : 'Create Service'}
+            <Button onClick={saveService} disabled={savingService}>
+              <Save className="w-4 h-4" /> {savingService ? 'Saving...' : editingServiceId ? 'Update Service' : 'Create Service'}
             </Button>
             <Button onClick={() => { resetServiceForm(); setShowServiceForm(false); }} disabled={savingService} variant="secondary">
               Cancel
@@ -579,7 +705,12 @@ export default function ProviderDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {servicesLoading && Array.from({ length: 4 }).map((_, index) => <ProviderServiceSkeleton key={index} />)}
-        {!servicesLoading && services.map(service => (
+        {!servicesLoading && services.map(service => {
+          const reviews = serviceReviews[service.id] || [];
+          const reviewsOpen = reviewPanelsOpen.includes(service.id);
+          const reviewCount = reviews.length;
+
+          return (
           <div key={service.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -601,8 +732,63 @@ export default function ProviderDashboard() {
                 ))}
               </div>
             )}
+            <div className="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => toggleReviews(service.id)}
+                className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Eye className="h-4 w-4" />
+                {reviewsOpen ? 'Hide reviews' : 'View reviews'}
+                {reviewCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <Star className="h-3.5 w-3.5 fill-amber-500" /> {getReviewAverage(reviews)} ({reviewCount})
+                  </span>
+                )}
+              </button>
+              <div className="flex gap-2">
+                <Button type="button" onClick={() => editService(service)} variant="secondary" size="icon" aria-label={`Edit ${service.title}`} title="Edit service">
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                <Button type="button" onClick={() => deleteService(service.id)} variant="destructive" size="icon" aria-label={`Delete ${service.title}`} title="Delete service">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {reviewsOpen && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                {reviewsLoading[service.id] ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                ) : reviewsError[service.id] ? (
+                  <p className="text-sm text-red-600 dark:text-red-300">{reviewsError[service.id]}</p>
+                ) : reviews.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No reviews for this service yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {reviews.map(review => (
+                      <div key={review.id} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white">{review.customerName}</p>
+                            <p className="text-xs text-slate-500">{formatReviewDate(review.updatedAt || review.createdAt)}</p>
+                          </div>
+                          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                            <Star className="h-3.5 w-3.5 fill-amber-500" /> {review.rating}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{review.comment || 'No written comment.'}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
         {!servicesLoading && services.length === 0 && (
           <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 flex flex-col items-center text-slate-400">
             <Briefcase className="w-10 h-10 mb-3 opacity-30" />
@@ -684,20 +870,27 @@ export default function ProviderDashboard() {
 
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="rounded-xl bg-indigo-600 p-2">
+          {/* <div className="rounded-xl bg-indigo-600 p-2">
             <Zap className="h-5 w-5 text-white" />
-          </div>
+          </div> */}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                      <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
+                    </div>
           <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">AgoraTask</span>
         </div>
-        <Button
-          type="button"
-          onClick={() => setMobileNavOpen(true)}
-          variant="secondary"
-          size="icon"
-          aria-label="Open provider menu"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <LanguageSwitcher />
+          <Button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            variant="secondary"
+            size="icon"
+            aria-label="Open provider menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
       </header>
 
       {/* ── Sidebar ──────────────────────────────────────────────── */}
@@ -721,7 +914,15 @@ export default function ProviderDashboard() {
         </nav>
 
         {/* Bottom: profile + logout */}
-        <div className="border-t border-slate-200 dark:border-slate-800 p-3 space-y-1">
+        <div className="border-t border-slate-200 dark:border-slate-800 p-3 space-y-2">
+          <div className="flex items-center justify-between rounded-xl px-1">
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Theme</span>
+            <ThemeToggle />
+          </div>
+          <div className="flex items-center justify-between rounded-xl px-1">
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Language</span>
+            <LanguageSwitcher />
+          </div>
           <Button
             onClick={handleLogout}
             variant="destructive"
@@ -785,7 +986,15 @@ export default function ProviderDashboard() {
             <nav className="flex-1 space-y-1 px-3">
               {NAV.map(item => renderNavButton(item))}
             </nav>
-            <div className="border-t border-slate-200 p-3 dark:border-slate-800">
+            <div className="space-y-2 border-t border-slate-200 p-3 dark:border-slate-800">
+              <div className="flex items-center justify-between rounded-xl px-1">
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Theme</span>
+                <ThemeToggle />
+              </div>
+              <div className="flex items-center justify-between rounded-xl px-1">
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Language</span>
+                <LanguageSwitcher />
+              </div>
               <Button
                 onClick={handleLogout}
                 variant="destructive"
@@ -801,6 +1010,10 @@ export default function ProviderDashboard() {
 
       {/* ── Main content ─────────────────────────────────────────── */}
       <main className="min-h-[calc(100vh-4rem)] min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 md:ml-20 lg:ml-0 lg:min-h-screen lg:p-8">
+        <div className="mb-4 hidden justify-end gap-3 md:flex lg:hidden">
+          <ThemeToggle />
+          <LanguageSwitcher />
+        </div>
         {CONTENT[section]}
       </main>
     </div>

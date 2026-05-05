@@ -10,7 +10,6 @@ import * as z from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Navbar } from '@/components/layout/Navbar';
-import Image from 'next/image';
 import { GoogleLoginButton } from '@/components/auth/GoogleLoginButton';
 
 const registerSchema = z.object({
@@ -41,7 +40,8 @@ export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = searchParams.get('returnTo');
-  const requestedRole = searchParams.get('role') === 'provider' ? 'provider' : 'customer';
+  const isProviderRegistration = searchParams.get('role') === 'provider';
+  const requestedRole = isProviderRegistration ? 'provider' : 'customer';
   
   const [role, setRole] = useState<RegisterRole>(requestedRole);
   const [registerError, setRegisterError] = useState('');
@@ -135,30 +135,32 @@ export default function RegisterPage() {
         <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
           <div className="bg-white dark:bg-neutral-900 px-6 py-12 shadow-sm border border-neutral-200/60 dark:border-neutral-800 rounded-3xl sm:px-12">
           
-          <div className="mb-8 flex p-1 bg-[#F9FAFB] dark:bg-neutral-950 rounded-full border border-neutral-200 dark:border-neutral-800">
-            <button 
-              onClick={() => setRole('customer')}
-              type="button"
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all cursor-pointer ${
-                role === 'customer' 
-                  ? 'bg-white dark:bg-neutral-800 shadow-sm text-[#171717] dark:text-white' 
-                  : 'text-neutral-500 hover:text-[#171717] dark:hover:text-white'
-              }`}
-            >
-              Customer
-            </button>
-            <button 
-              onClick={() => setRole('provider')}
-              type="button"
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all cursor-pointer ${
-                role === 'provider' 
-                  ? 'bg-white dark:bg-neutral-800 shadow-sm text-[#171717] dark:text-white' 
-                  : 'text-neutral-500 hover:text-[#171717] dark:hover:text-white'
-              }`}
-            >
-              Provider
-            </button>
-          </div>
+          {!isProviderRegistration && (
+            <div className="mb-8 flex p-1 bg-[#F9FAFB] dark:bg-neutral-950 rounded-full border border-neutral-200 dark:border-neutral-800">
+              <button 
+                onClick={() => setRole('customer')}
+                type="button"
+                className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all cursor-pointer ${
+                  role === 'customer' 
+                    ? 'bg-white dark:bg-neutral-800 shadow-sm text-[#171717] dark:text-white' 
+                    : 'text-neutral-500 hover:text-[#171717] dark:hover:text-white'
+                }`}
+              >
+                Customer
+              </button>
+              <button 
+                onClick={() => setRole('provider')}
+                type="button"
+                className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all cursor-pointer ${
+                  role === 'provider' 
+                    ? 'bg-white dark:bg-neutral-800 shadow-sm text-[#171717] dark:text-white' 
+                    : 'text-neutral-500 hover:text-[#171717] dark:hover:text-white'
+                }`}
+              >
+                Provider
+              </button>
+            </div>
+          )}
 
           <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
             <div>

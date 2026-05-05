@@ -53,7 +53,7 @@ export function LoginButton() {
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-1.5 hover:shadow-md transition-all"
+          className="flex items-center gap-1.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-1.5 hover:shadow-md transition-all"
           aria-expanded={isOpen}
         >
           {user.profileImage ? (
@@ -165,7 +165,7 @@ export function LoginButton() {
     <div className="flex items-center gap-0">
       <Link
         href={`/${country}/login`}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#171717] text-white shadow-sm transition-all hover:bg-black active:scale-95 dark:bg-white dark:text-[#171717] dark:hover:bg-neutral-200 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm sm:font-semibold"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#171717] text-white shadow-sm transition-all hover:bg-black active:scale-95 dark:bg-white dark:text-[#171717] dark:hover:bg-neutral-200 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5 sm:text-sm sm:font-semibold"
         aria-label={t('common.login')}
         title={t('common.login')}
       >
