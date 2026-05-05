@@ -127,7 +127,7 @@ export default function ProviderDashboard() {
   const [formPrice, setFormPrice] = useState('');
   const [formPriceType, setFormPriceType] = useState<'fixed' | 'hourly' | 'quote'>('fixed');
   const [formDuration, setFormDuration] = useState('');
-  const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('active');
+  const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('pending_review');
   const [formServiceTypeIds, setFormServiceTypeIds] = useState<string[]>([]);
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
   const [formProvinceId, setFormProvinceId] = useState('');
@@ -206,7 +206,7 @@ export default function ProviderDashboard() {
     setFormPrice('');
     setFormPriceType('fixed');
     setFormDuration('');
-    setFormStatus('active');
+    setFormStatus('pending_review');
     setFormServiceTypeIds([]);
     setExpandedServiceTypeIds([]);
     setFormProvinceId('');
@@ -576,10 +576,10 @@ export default function ProviderDashboard() {
             >
               <Combobox.Input />
               <Combobox.List>
-                <Combobox.Option value="active">Active</Combobox.Option>
+                {formStatus === 'active' && <Combobox.Option value="active">Active</Combobox.Option>}
                 <Combobox.Option value="draft">Draft</Combobox.Option>
                 <Combobox.Option value="paused">Paused</Combobox.Option>
-                <Combobox.Option value="pending_review">Pending review</Combobox.Option>
+                <Combobox.Option value="pending_review">Submit for review</Combobox.Option>
               </Combobox.List>
             </Combobox>
             <div className="relative">
@@ -921,7 +921,7 @@ export default function ProviderDashboard() {
           </div>
           <div className="flex items-center justify-between rounded-xl px-1">
             <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Language</span>
-            <LanguageSwitcher />
+            <LanguageSwitcher position="top" />
           </div>
           <Button
             onClick={handleLogout}

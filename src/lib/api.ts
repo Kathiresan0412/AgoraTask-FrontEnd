@@ -112,6 +112,27 @@ export interface AdminProviderFilters {
   location?: string;
 }
 
+export interface AdminServiceDto {
+  id: string;
+  providerId: string;
+  title: string;
+  description: string | null;
+  basePrice: number | null;
+  priceType: 'fixed' | 'hourly' | 'quote';
+  durationMins: number | null;
+  serviceArea: string[];
+  images: string[];
+  status: 'draft' | 'active' | 'paused' | 'pending_review' | 'rejected';
+  createdAt: string;
+  updatedAt?: string;
+  provider: {
+    name: string;
+    email: string;
+    profileImage: string;
+  };
+  serviceTypes: ServiceTypeDto[];
+}
+
 export interface MessageDto {
   id: string;
   conversationId: string;
@@ -283,6 +304,15 @@ export const serviceTypeApi = {
 };
 
 export const adminApi = {
+  listServices: () =>
+    api.get<AdminServiceDto[]>('/admin/services'),
+
+  approveService: (id: string) =>
+    api.post<{ success: boolean; message: string }>(`/admin/services/${id}/approve`),
+
+  rejectService: (id: string) =>
+    api.post<{ success: boolean; message: string }>(`/admin/services/${id}/reject`),
+
   listProviders: (filters: AdminProviderFilters = {}) =>
     api.get<AdminProviderDto[]>('/admin/providers', { params: filters }),
 
