@@ -66,6 +66,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (options.silent && typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return;
+    }
+
     if (!options.silent) setIsLoading(true);
     setError('');
     try {
@@ -87,7 +91,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     refreshConversations();
     const syncTimer = window.setInterval(() => {
       refreshConversations({ silent: true });
-    }, 5000);
+    }, 15000);
 
     return () => window.clearInterval(syncTimer);
   }, [refreshConversations, user]);
