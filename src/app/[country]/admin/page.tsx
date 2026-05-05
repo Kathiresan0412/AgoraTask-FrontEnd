@@ -16,6 +16,7 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { adminApi, serviceTypeApi } from '@/lib/api';
 import type { AdminProviderDto, AdminServiceDto, ServiceTypeDto } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image'; 
 
 // ── Types ────────────────────────────────────────────────────────
 interface ServiceType {
@@ -453,7 +454,7 @@ export default function AdminDashboard() {
         <StatCard label="Providers Loaded" value={String(providers.length)} accent="#3B82F6" />
         <StatCard label="Active Providers" value={String(providers.filter(provider => provider.status === 'active').length)} accent="#6366F1" />
         <StatCard label="Pending Providers" value={String(providers.filter(provider => provider.status === 'pending').length)} accent="#10B981" />
-        <StatCard label="Revenue" value="API required" accent="#F59E0B" />
+        {/* <StatCard label="Revenue" value="API required" accent="#F59E0B" /> */}
       </div>
 
       <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-900 dark:text-white">
@@ -1015,9 +1016,12 @@ export default function AdminDashboard() {
       <aside className="w-64 shrink-0 bg-slate-900 dark:bg-slate-950 flex flex-col border-r border-slate-800 min-h-screen">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-800">
-          <div className="bg-indigo-600 p-2 rounded-xl">
+          {/* <div className="bg-indigo-600 p-2 rounded-xl">
             <Zap className="w-5 h-5 text-white" />
-          </div>
+          </div> */}
+           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
+              </div>
           <span className="text-lg font-extrabold tracking-tight text-white">AgoraTask</span>
         </div>
 

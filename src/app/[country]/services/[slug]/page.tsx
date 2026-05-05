@@ -5,9 +5,9 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { publicServiceApi, reviewApi } from '@/lib/api';
+import { bookingApi, publicServiceApi, reviewApi } from '@/lib/api';
 import type { PublicServiceDto, ReviewDto } from '@/lib/api';
-import { AlertCircle, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatServicePrice } from '@/lib/countries';
@@ -47,6 +47,18 @@ const getApiErrorMessage = (err: unknown) => {
     if (typeof response?.data?.error === 'string') return response.data.error;
   }
   return null;
+};
+
+const toDateTimeLocalValue = (date: Date) => {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
+const getDefaultBookingTime = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(9, 0, 0, 0);
+  return toDateTimeLocalValue(date);
 };
 
 function ServiceDetailSkeleton() {
@@ -111,6 +123,9 @@ export default function ServiceDetailPage() {
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [bookingTime, setBookingTime] = useState(getDefaultBookingTime);
+  const [bookingNotice, setBookingNotice] = useState('');
+  const [isBooking, setIsBooking] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,13 +259,38 @@ export default function ServiceDetailPage() {
     }
   };
 
-  const handleBookService = () => {
+  const handleBookService = async () => {
+    if (!service) return;
+
     if (!user) {
       setShowLoginModal(true);
       return;
     }
 
-    router.push(`/${country}/dashboard`);
+    if (user.role !== 'customer') {
+      setBookingNotice('Only customer accounts can book services.');
+      return;
+    }
+
+    if (!bookingTime) {
+      setBookingNotice('Choose a date and time for your booking.');
+      return;
+    }
+
+    setBookingNotice('');
+    setIsBooking(true);
+    try {
+      await bookingApi.create({
+        providerServiceId: service.id,
+        scheduledTime: new Date(bookingTime).toISOString(),
+      });
+      setBookingNotice('Booking request sent. The provider can now accept or decline it.');
+      router.push(`/${country}/dashboard`);
+    } catch (err: unknown) {
+      setBookingNotice(getApiErrorMessage(err) || 'Could not create this booking.');
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   if (isLoading) {
@@ -356,9 +396,27 @@ export default function ServiceDetailPage() {
                 {t('serviceDetail.reviewNotice')}
               </div>
 
-              <button type="button" onClick={handleBookService} className="mt-5 block w-full rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700">
-                {t('serviceDetail.bookThisService')}
+              <label className="mt-5 block">
+                <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+                  <CalendarDays className="h-4 w-4" />
+                  Preferred time
+                </span>
+                <input
+                  type="datetime-local"
+                  value={bookingTime}
+                  min={toDateTimeLocalValue(new Date())}
+                  onChange={event => setBookingTime(event.target.value)}
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950"
+                />
+              </label>
+
+              <button type="button" onClick={handleBookService} disabled={isBooking} className="mt-4 block w-full rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {isBooking ? 'Sending request...' : t('serviceDetail.bookThisService')}
               </button>
+
+              {bookingNotice && (
+                <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">{bookingNotice}</p>
+              )}
             </div>
           </aside>
         </div>

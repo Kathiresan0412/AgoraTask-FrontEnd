@@ -272,6 +272,26 @@ export interface ReviewTarget {
   providerServiceId?: string;
 }
 
+export interface BookingDto {
+  id: string;
+  serviceId: string | null;
+  providerServiceId: string | null;
+  customerId: string;
+  providerId: string;
+  customerName: string;
+  providerName: string;
+  serviceTitle: string;
+  scheduledTime: string | null;
+  status: 'pending' | 'accepted' | 'declined' | 'completed' | 'cancelled';
+  amount: number | null;
+  createdAt: string;
+}
+
+export interface BookingPayload {
+  providerServiceId: string;
+  scheduledTime: string;
+}
+
 export const authApi = {
   login: (data: LoginPayload) =>
     api.post<AuthResponse>('/auth/login', data),
@@ -355,6 +375,23 @@ export const providerApi = {
 
   deleteService: (id: string) =>
     api.delete<{ success: boolean }>(`/provider/services/${id}`),
+};
+
+export const bookingApi = {
+  listMine: () =>
+    api.get<BookingDto[]>('/bookings/my'),
+
+  create: (data: BookingPayload) =>
+    api.post<BookingDto>('/bookings', data),
+
+  cancel: (id: string) =>
+    api.post<BookingDto>(`/bookings/${id}/cancel`),
+
+  accept: (id: string) =>
+    api.post<BookingDto>(`/bookings/${id}/accept`),
+
+  decline: (id: string) =>
+    api.post<BookingDto>(`/bookings/${id}/decline`),
 };
 
 export const publicServiceApi = {
