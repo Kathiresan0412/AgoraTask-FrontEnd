@@ -112,6 +112,27 @@ export interface AdminProviderFilters {
   location?: string;
 }
 
+export interface AdminServiceDto {
+  id: string;
+  providerId: string;
+  title: string;
+  description: string | null;
+  basePrice: number | null;
+  priceType: 'fixed' | 'hourly' | 'quote';
+  durationMins: number | null;
+  serviceArea: string[];
+  images: string[];
+  status: 'draft' | 'active' | 'paused' | 'pending_review' | 'rejected';
+  createdAt: string;
+  updatedAt?: string;
+  provider: {
+    name: string;
+    email: string;
+    profileImage: string;
+  };
+  serviceTypes: ServiceTypeDto[];
+}
+
 export interface MessageDto {
   id: string;
   conversationId: string;
@@ -251,6 +272,26 @@ export interface ReviewTarget {
   providerServiceId?: string;
 }
 
+export interface BookingDto {
+  id: string;
+  serviceId: string | null;
+  providerServiceId: string | null;
+  customerId: string;
+  providerId: string;
+  customerName: string;
+  providerName: string;
+  serviceTitle: string;
+  scheduledTime: string | null;
+  status: 'pending' | 'accepted' | 'declined' | 'completed' | 'cancelled';
+  amount: number | null;
+  createdAt: string;
+}
+
+export interface BookingPayload {
+  providerServiceId: string;
+  scheduledTime: string;
+}
+
 export const authApi = {
   login: (data: LoginPayload) =>
     api.post<AuthResponse>('/auth/login', data),
@@ -283,6 +324,15 @@ export const serviceTypeApi = {
 };
 
 export const adminApi = {
+  listServices: () =>
+    api.get<AdminServiceDto[]>('/admin/services'),
+
+  approveService: (id: string) =>
+    api.post<{ success: boolean; message: string }>(`/admin/services/${id}/approve`),
+
+  rejectService: (id: string) =>
+    api.post<{ success: boolean; message: string }>(`/admin/services/${id}/reject`),
+
   listProviders: (filters: AdminProviderFilters = {}) =>
     api.get<AdminProviderDto[]>('/admin/providers', { params: filters }),
 
@@ -325,6 +375,23 @@ export const providerApi = {
 
   deleteService: (id: string) =>
     api.delete<{ success: boolean }>(`/provider/services/${id}`),
+};
+
+export const bookingApi = {
+  listMine: () =>
+    api.get<BookingDto[]>('/bookings/my'),
+
+  create: (data: BookingPayload) =>
+    api.post<BookingDto>('/bookings', data),
+
+  cancel: (id: string) =>
+    api.post<BookingDto>(`/bookings/${id}/cancel`),
+
+  accept: (id: string) =>
+    api.post<BookingDto>(`/bookings/${id}/accept`),
+
+  decline: (id: string) =>
+    api.post<BookingDto>(`/bookings/${id}/decline`),
 };
 
 export const publicServiceApi = {

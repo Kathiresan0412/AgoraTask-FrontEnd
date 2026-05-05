@@ -4,7 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Globe, Check } from 'lucide-react';
 import { useLanguage, Language } from '@/contexts/LanguageContext';
 
-export function LanguageSwitcher() {
+interface LanguageSwitcherProps {
+  position?: 'top' | 'bottom';
+}
+
+export function LanguageSwitcher({ position = 'bottom' }: LanguageSwitcherProps) {
   const { language, setLanguage, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -40,7 +44,9 @@ export function LanguageSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-lg py-2 z-50 overflow-hidden">
+        <div className={`absolute right-0 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-lg py-2 z-50 overflow-hidden ${
+          position === 'top' ? 'bottom-full mb-2' : 'mt-2'
+        }`}>
           {languages.map((lang) => (
             <button
               key={lang.code}

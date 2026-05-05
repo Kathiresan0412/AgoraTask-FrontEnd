@@ -14,8 +14,8 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button, Combobox, Input, Textarea } from 'geist/components';
-import { providerApi, reviewApi, serviceTypeApi } from '@/lib/api';
-import type { ProviderServiceDto, ReviewDto, ServiceTypeDto } from '@/lib/api';
+import { bookingApi, providerApi, reviewApi, serviceTypeApi } from '@/lib/api';
+import type { BookingDto, ProviderServiceDto, ReviewDto, ServiceTypeDto } from '@/lib/api';
 import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistrictsByProvince, getLocationLabel, normalizeCountryCode } from '@/lib/locations';
 import { formatServicePrice } from '@/lib/countries';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -119,6 +119,11 @@ export default function ProviderDashboard() {
   const [servicesLoading, setServicesLoading] = useState(false);
   const [servicesLoaded, setServicesLoaded] = useState(false);
   const [servicesError, setServicesError] = useState('');
+  const [bookings, setBookings] = useState<BookingDto[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsLoaded, setBookingsLoaded] = useState(false);
+  const [bookingsError, setBookingsError] = useState('');
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [savingService, setSavingService] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -127,7 +132,7 @@ export default function ProviderDashboard() {
   const [formPrice, setFormPrice] = useState('');
   const [formPriceType, setFormPriceType] = useState<'fixed' | 'hourly' | 'quote'>('fixed');
   const [formDuration, setFormDuration] = useState('');
-  const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('active');
+  const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('pending_review');
   const [formServiceTypeIds, setFormServiceTypeIds] = useState<string[]>([]);
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
   const [formProvinceId, setFormProvinceId] = useState('');
@@ -185,6 +190,26 @@ export default function ProviderDashboard() {
     }
   }, [loadServicesData, section, servicesLoaded]);
 
+  const loadBookings = useCallback(async () => {
+    setBookingsLoading(true);
+    setBookingsError('');
+    try {
+      const { data } = await bookingApi.listMine();
+      setBookings(data);
+      setBookingsLoaded(true);
+    } catch {
+      setBookingsError('Could not load booking requests.');
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section === 'bookings' && !bookingsLoaded) {
+      loadBookings();
+    }
+  }, [bookingsLoaded, loadBookings, section]);
+
   const providerDistricts = getDistrictsByProvince(formProvinceId, countryCode);
   const effectiveFormDistrictId = isCanada ? providerDistricts[0]?.id || '' : formDistrictId;
   const providerCities = isCanada
@@ -206,7 +231,7 @@ export default function ProviderDashboard() {
     setFormPrice('');
     setFormPriceType('fixed');
     setFormDuration('');
-    setFormStatus('active');
+    setFormStatus('pending_review');
     setFormServiceTypeIds([]);
     setExpandedServiceTypeIds([]);
     setFormProvinceId('');
@@ -435,6 +460,96 @@ export default function ProviderDashboard() {
     );
   };
 
+  const formatBookingTime = (value: string | null) => {
+    if (!value) return 'Flexible';
+    return new Date(value).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const updateBookingStatus = async (bookingId: string, action: 'accept' | 'decline') => {
+    setUpdatingBookingId(bookingId);
+    setBookingsError('');
+    try {
+      const { data } = action === 'accept'
+        ? await bookingApi.accept(bookingId)
+        : await bookingApi.decline(bookingId);
+      setBookings(current => current.map(booking => booking.id === bookingId ? data : booking));
+    } catch {
+      setBookingsError(`Could not ${action} this booking.`);
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
+
+  const renderBookings = () => (
+    <div>
+      <h1 className="mb-6 text-2xl font-extrabold text-slate-900 dark:text-white">Bookings</h1>
+      {bookingsError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          {bookingsError}
+        </div>
+      )}
+      <div className="space-y-4">
+        {bookingsLoading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
+          ))
+        ) : bookings.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+            No booking requests yet.
+          </div>
+        ) : (
+          bookings.map(booking => (
+            <div key={booking.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold capitalize text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+                      {booking.status}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {formatServicePrice(booking.amount, 'fixed', countryCode)}
+                    </span>
+                  </div>
+                  <h3 className="truncate text-lg font-black text-slate-900 dark:text-white">{booking.serviceTitle}</h3>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Customer: <span className="font-semibold text-slate-700 dark:text-slate-200">{booking.customerName}</span></p>
+                  <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Preferred time: {formatBookingTime(booking.scheduledTime)}</p>
+                </div>
+                {booking.status === 'pending' && (
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => updateBookingStatus(booking.id, 'accept')}
+                      disabled={updatingBookingId === booking.id}
+                      className="bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      <Check className="h-4 w-4" />
+                      Accept
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => updateBookingStatus(booking.id, 'decline')}
+                      disabled={updatingBookingId === booking.id}
+                      variant="destructive"
+                    >
+                      <X className="h-4 w-4" />
+                      Decline
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   const renderServiceTypeOption = (type: ServiceTypeDto) => {
     const selected = formServiceTypeIds.includes(type.id);
 
@@ -576,10 +691,10 @@ export default function ProviderDashboard() {
             >
               <Combobox.Input />
               <Combobox.List>
-                <Combobox.Option value="active">Active</Combobox.Option>
+                {formStatus === 'active' && <Combobox.Option value="active">Active</Combobox.Option>}
                 <Combobox.Option value="draft">Draft</Combobox.Option>
                 <Combobox.Option value="paused">Paused</Combobox.Option>
-                <Combobox.Option value="pending_review">Pending review</Combobox.Option>
+                <Combobox.Option value="pending_review">Submit for review</Combobox.Option>
               </Combobox.List>
             </Combobox>
             <div className="relative">
@@ -799,11 +914,17 @@ export default function ProviderDashboard() {
     </div>
   );
 
+  const renderMessages = () => (
+    <div className="h-[calc(100vh-6.5rem)] min-h-0 overflow-hidden border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 md:h-[calc(100vh-7.5rem)] lg:h-[calc(100vh-4rem)]">
+      <MessagesPanel />
+    </div>
+  );
+
   const CONTENT: Record<Section, React.ReactNode> = {
     overview: renderOverview(),
     services: renderServices(),
-    bookings: renderPlaceholder('Bookings', Calendar),
-    messages: <MessagesPanel />,
+    bookings: renderBookings(),
+    messages: renderMessages(),
     earnings: renderPlaceholder('Earnings', DollarSign),
     settings: <SettingsPanel />,
   };
@@ -897,9 +1018,12 @@ export default function ProviderDashboard() {
       <aside className="hidden w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:flex flex-col min-h-screen">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-200 dark:border-slate-800">
-          <div className="bg-indigo-600 p-2 rounded-xl">
+          {/* <div className="bg-indigo-600 p-2 rounded-xl">
             <Zap className="w-5 h-5 text-white" />
-          </div>
+          </div> */}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
+              </div>
           <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">AgoraTask</span>
         </div>
 
@@ -921,7 +1045,7 @@ export default function ProviderDashboard() {
           </div>
           <div className="flex items-center justify-between rounded-xl px-1">
             <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Language</span>
-            <LanguageSwitcher />
+            <LanguageSwitcher position="top" />
           </div>
           <Button
             onClick={handleLogout}
@@ -1009,7 +1133,7 @@ export default function ProviderDashboard() {
       )}
 
       {/* ── Main content ─────────────────────────────────────────── */}
-      <main className="min-h-[calc(100vh-4rem)] min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 md:ml-20 lg:ml-0 lg:min-h-screen lg:p-8">
+      <main className={`min-h-[calc(100vh-4rem)] min-w-0 flex-1 px-4 py-5 sm:px-6 md:ml-20 lg:ml-0 lg:min-h-screen lg:p-8 ${section === 'messages' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         <div className="mb-4 hidden justify-end gap-3 md:flex lg:hidden">
           <ThemeToggle />
           <LanguageSwitcher />

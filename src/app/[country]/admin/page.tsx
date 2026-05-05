@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, Users, Layers, Settings, ShieldAlert,
   LogOut, Plus, Trash2, Edit2, Check, X, Zap,
@@ -14,8 +14,9 @@ import { useMessages } from '@/contexts/MessagesContext';
 import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { adminApi, serviceTypeApi } from '@/lib/api';
-import type { AdminProviderDto, ServiceTypeDto } from '@/lib/api';
+import type { AdminProviderDto, AdminServiceDto, ServiceTypeDto } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import Image from 'next/image'; 
 
 // ── Types ────────────────────────────────────────────────────────
 interface ServiceType {
@@ -30,6 +31,7 @@ interface ServiceType {
 
 // ── Sidebar nav items ─────────────────────────────────────────────
 type Section = 'dashboard' | 'services' | 'service-types' | 'providers' | 'messages' | 'settings';
+const SECTIONS: Section[] = ['dashboard', 'services', 'service-types', 'providers', 'messages', 'settings'];
 
 const NAV = [
   { id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard },
@@ -116,6 +118,23 @@ function formatProviderStatus(status: AdminProviderDto['status']) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function serviceStatusClass(status: AdminServiceDto['status']) {
+  if (status === 'active') {
+    return 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800';
+  }
+  if (status === 'pending_review') {
+    return 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+  }
+  if (status === 'rejected') {
+    return 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
+  }
+  return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+}
+
+function formatServiceStatus(status: AdminServiceDto['status']) {
+  return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 function mapServiceType(row: ServiceTypeDto): ServiceType {
   return {
     id: row.id,
@@ -145,13 +164,20 @@ export default function AdminDashboard() {
   const params = useParams();
   const country = params?.country as string || 'lk';
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
 
-  const [section, setSection] = useState<Section>('dashboard');
+  const [section, setSection] = useState<Section>(SECTIONS.includes(tabParam as Section) ? tabParam as Section : 'dashboard');
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [serviceTypesLoading, setServiceTypesLoading] = useState(true);
   const [serviceTypesLoaded, setServiceTypesLoaded] = useState(false);
   const [serviceTypesError, setServiceTypesError] = useState('');
   const [savingServiceType, setSavingServiceType] = useState(false);
+  const [services, setServices] = useState<AdminServiceDto[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesLoaded, setServicesLoaded] = useState(false);
+  const [servicesError, setServicesError] = useState('');
+  const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(null);
   const [providers, setProviders] = useState<AdminProviderDto[]>([]);
   const [providersLoading, setProvidersLoading] = useState(true);
   const [providersError, setProvidersError] = useState('');
@@ -173,6 +199,19 @@ export default function AdminDashboard() {
   const [formError, setFormError] = useState('');
 
   const handleLogout = () => { logout(); router.push(`/${country}/login`); };
+  const selectSection = (nextSection: Section) => {
+    setSection(nextSection);
+    router.push(`/${country}/admin?tab=${nextSection}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    if (SECTIONS.includes(tabParam as Section)) {
+      setSection(tabParam as Section);
+      return;
+    }
+
+    setSection('dashboard');
+  }, [tabParam]);
 
   const loadServiceTypes = useCallback(async () => {
     setServiceTypesLoading(true);
@@ -206,11 +245,31 @@ export default function AdminDashboard() {
     }
   }, [providerCategoryFilter, providerLocationFilter, providerSearch, providerStatusFilter]);
 
+  const loadServices = useCallback(async () => {
+    setServicesLoading(true);
+    setServicesError('');
+    try {
+      const { data } = await adminApi.listServices();
+      setServices(data);
+      setServicesLoaded(true);
+    } catch {
+      setServicesError('Could not load services from the database.');
+    } finally {
+      setServicesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (section !== 'service-types' || serviceTypesLoaded) return;
 
     loadServiceTypes();
   }, [loadServiceTypes, section, serviceTypesLoaded]);
+
+  useEffect(() => {
+    if (section !== 'services' || servicesLoaded) return;
+
+    loadServices();
+  }, [loadServices, section, servicesLoaded]);
 
   useEffect(() => {
     if (section !== 'providers' && section !== 'dashboard') return;
@@ -362,6 +421,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const updateServiceStatus = async (id: string, nextStatus: 'active' | 'rejected') => {
+    const previousServices = services;
+    setUpdatingServiceId(id);
+    setServicesError('');
+    setServices(prev => prev.map(service => (
+      service.id === id ? { ...service, status: nextStatus } : service
+    )));
+
+    try {
+      if (nextStatus === 'active') {
+        await adminApi.approveService(id);
+      } else {
+        await adminApi.rejectService(id);
+      }
+      await loadServices();
+    } catch {
+      setServices(previousServices);
+      setServicesError(`Could not ${nextStatus === 'active' ? 'approve' : 'reject'} this service.`);
+    } finally {
+      setUpdatingServiceId(null);
+    }
+  };
+
   // ── Section renderers ───────────────────────────────────────────
   const renderDashboard = () => (
     <div>
@@ -372,7 +454,7 @@ export default function AdminDashboard() {
         <StatCard label="Providers Loaded" value={String(providers.length)} accent="#3B82F6" />
         <StatCard label="Active Providers" value={String(providers.filter(provider => provider.status === 'active').length)} accent="#6366F1" />
         <StatCard label="Pending Providers" value={String(providers.filter(provider => provider.status === 'pending').length)} accent="#10B981" />
-        <StatCard label="Revenue" value="API required" accent="#F59E0B" />
+        {/* <StatCard label="Revenue" value="API required" accent="#F59E0B" /> */}
       </div>
 
       <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-900 dark:text-white">
@@ -610,19 +692,140 @@ export default function AdminDashboard() {
   );
 
   const renderServices = () => {
+    const activeServices = services.filter(service => service.status === 'active').length;
+    const pendingServices = services.filter(service => service.status === 'pending_review').length;
+    const draftServices = services.filter(service => service.status === 'draft').length;
+
     return (
       <div>
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">All Services</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Service administration needs a production API endpoint before records can be shown here.</p>
+            <p className="text-sm text-slate-500 mt-0.5">Review services created by providers across the marketplace.</p>
           </div>
+          <button
+            onClick={loadServices}
+            disabled={servicesLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${servicesLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-          <ClipboardList className="mx-auto mb-3 h-10 w-10 opacity-40" />
-          <p className="font-medium">No service records are rendered from static data.</p>
-          <p className="mt-2 text-sm">Add an admin services API to enable this production view.</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Total Services" value={services.length.toString()} accent="#3B82F6" />
+          <StatCard label="Active" value={activeServices.toString()} accent="#10B981" />
+          <StatCard label="Pending Review" value={pendingServices.toString()} accent="#F59E0B" />
+          <StatCard label="Drafts" value={draftServices.toString()} accent="#6366F1" />
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          {servicesError && (
+            <div className="mx-5 mt-5 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+              {servicesError}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  {['Service', 'Provider', 'Categories', 'Price', 'Status', 'Created', 'Actions'].map(header => (
+                    <th key={header} className="p-4 font-semibold text-sm text-slate-500 whitespace-nowrap">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {servicesLoading && Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index} className="border-b border-slate-100 dark:border-slate-800/50">
+                    <td className="p-4 min-w-72">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Skeleton className="h-4 w-44" />
+                          <Skeleton className="h-3 w-56" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4"><Skeleton className="h-4 w-32" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-40" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-20" /></td>
+                    <td className="p-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-24" /></td>
+                    <td className="p-4"><Skeleton className="h-8 w-40 rounded-lg" /></td>
+                  </tr>
+                ))}
+
+                {!servicesLoading && services.map(service => (
+                  <tr key={service.id} className="border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="p-4 min-w-72">
+                      <div className="flex items-center gap-3">
+                        {service.images[0] ? (
+                          <img src={service.images[0]} alt="" className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                            <ClipboardList className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-white truncate">{service.title}</p>
+                          <p className="text-xs text-slate-500 truncate">{service.description || 'No description added'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white">{service.provider.name}</p>
+                        <p className="text-xs text-slate-500">{service.provider.email || 'No email'}</p>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600 dark:text-slate-300">
+                      {service.serviceTypes.length ? service.serviceTypes.map(type => type.name).join(', ') : 'Unassigned'}
+                    </td>
+                    <td className="p-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                      {service.basePrice ? `${service.basePrice} ${service.priceType}` : 'Quote'}
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${serviceStatusClass(service.status)}`}>
+                        {formatServiceStatus(service.status)}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
+                      {service.createdAt ? new Date(service.createdAt).toLocaleDateString() : 'Unknown'}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateServiceStatus(service.id, 'active')}
+                          disabled={updatingServiceId === service.id || service.status === 'active'}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Approve
+                        </button>
+                        <button
+                          onClick={() => updateServiceStatus(service.id, 'rejected')}
+                          disabled={updatingServiceId === service.id || service.status === 'rejected'}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {!servicesLoading && services.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-10 text-center text-slate-400">
+                      <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium">No services found.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -813,9 +1016,12 @@ export default function AdminDashboard() {
       <aside className="w-64 shrink-0 bg-slate-900 dark:bg-slate-950 flex flex-col border-r border-slate-800 min-h-screen">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-800">
-          <div className="bg-indigo-600 p-2 rounded-xl">
+          {/* <div className="bg-indigo-600 p-2 rounded-xl">
             <Zap className="w-5 h-5 text-white" />
-          </div>
+          </div> */}
+           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
+              </div>
           <span className="text-lg font-extrabold tracking-tight text-white">AgoraTask</span>
         </div>
 
@@ -833,7 +1039,7 @@ export default function AdminDashboard() {
             return (
               <button
                 key={item.id}
-                onClick={() => setSection(item.id)}
+                onClick={() => selectSection(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active
                     ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
