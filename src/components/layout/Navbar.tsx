@@ -20,10 +20,21 @@ export function Navbar() {
   const isRegisterPage = pathname === `/${country}/register`;
 
   const navLinks = [
+    { href: `/${country}`, label: t('nav.home') },
+    { href: `/${country}/messages`, label: t('nav.messages') },
     { href: `/${country}/services`, label: t('nav.services') },
-    { href: `/${country}/dashboard`, label: t('nav.dashboard') },
+    { href: `/${country}/about`, label: t('nav.aboutUs') },
     { href: `/${country}/register?role=provider`, label: t('nav.becomeProvider') },
   ];
+
+  const isActiveLink = (href: string) => {
+    const [hrefPath] = href.split('?');
+    if (hrefPath === `/${country}`) {
+      return pathname === hrefPath;
+    }
+
+    return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
+  };
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -31,7 +42,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-neutral-200/60 dark:border-neutral-800/60 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-md">
-      <div className="container mx-auto flex h-16 items-center justify-between gap-3 px-4">
+      <div className="container mx-auto flex h-16 items-center justify-between gap-3 px-1">
         <Link href={`/${country}`} className="flex min-w-0 items-center gap-2.5 leading-none" onClick={() => setMobileOpen(false)}>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
             <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
@@ -39,10 +50,25 @@ export function Navbar() {
           <span className="truncate text-lg font-extrabold tracking-tight sm:text-xl">Agora Task</span>
         </Link>
         
-        <nav className="hidden md:flex gap-8 items-center font-medium text-sm text-neutral-500 dark:text-neutral-400">
-          {navLinks.map(link => (
-            <Link key={link.href} href={link.href} className="hover:text-[#171717] dark:hover:text-white transition-colors">{link.label}</Link>
-          ))}
+        <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-neutral-500 dark:text-neutral-400">
+          {navLinks.map(link => {
+            const active = isActiveLink(link.href);
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`relative py-5 transition-colors after:absolute after:bottom-3 after:left-0 after:h-0.5 after:w-full after:origin-center after:rounded-full after:bg-[#171717] after:transition-transform dark:after:bg-white ${
+                  active
+                    ? 'text-[#171717] after:scale-x-100 dark:text-white'
+                    : 'hover:text-[#171717] after:scale-x-0 hover:after:scale-x-100 dark:hover:text-white'
+                }`}
+                aria-current={active ? 'page' : undefined}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-4">
@@ -63,16 +89,25 @@ export function Navbar() {
        {mobileOpen && (
        <nav className="border-t border-neutral-200/60 bg-white px-4 py-3 shadow-sm dark:border-neutral-800/60 dark:bg-neutral-950 md:hidden">
           <div className="container mx-auto flex flex-col gap-1">
-            {navLinks.map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className="rounded-xl px-3 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900"
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map(link => {
+              const active = isActiveLink(link.href);
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`border-l-2 px-3 py-3 text-sm font-semibold transition-colors ${
+                    active
+                      ? 'border-[#171717] bg-neutral-100 text-[#171717] dark:border-white dark:bg-neutral-900 dark:text-white'
+                      : 'border-transparent text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900'
+                  }`}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
         </nav>
       )}

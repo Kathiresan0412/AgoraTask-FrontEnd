@@ -20,11 +20,8 @@ const CATEGORIES = [
 
 interface BotMsg { role: 'bot' | 'user'; text: string; chips?: string[] }
 
-const PROVIDER_EMAIL = 'provider@gmail.com';
-
 export default function CustomerAssistant() {
   const { user } = useAuth();
-  const { sendMessage } = useMessages();
   const { t } = useLanguage();
 
   const [open, setOpen] = useState(false);
@@ -70,8 +67,7 @@ export default function CustomerAssistant() {
     addMsg('user', chip);
     setTimeout(async () => {
       if (chip.includes('Message a provider')) {
-        await sendMessage(user.email, user.name, PROVIDER_EMAIL, 'Hi! I saw your profile and I\'m interested in your services.');
-        addMsg('bot', "✅ I've sent a message to a top provider on your behalf! Switch to your **Inbox** tab to continue the conversation.");
+        addMsg('bot', "Open a provider profile from the Services page and send your message there.");
       } else if (chip.includes('Book now')) {
         addMsg('bot', "🗓️ Please visit the Services page to pick an available slot. I'll remind you 24 hours before your booking!");
       } else {
@@ -224,18 +220,15 @@ export default function CustomerAssistant() {
 // ── Inline Inbox (customer → provider / admin) ───────────────────
 function InboxTab() {
   const { user } = useAuth();
-  const { getInbox, sendMessage, markRead, refreshConversations } = useMessages();
+  const { getInbox, sendMessage, markRead } = useMessages();
   const { t } = useLanguage();
   const [activeConv, setActiveConv] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const inbox = user ? getInbox(user.email) : [];
   const conv  = inbox.find(c => c.id === activeConv);
-
-  useEffect(() => {
-    refreshConversations();
-  }, [refreshConversations]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [conv?.messages.length]);
   useEffect(() => {
@@ -244,10 +237,21 @@ function InboxTab() {
   }, [conv, markRead, user]);
 
   const send = async () => {
-    if (!replyText.trim() || !conv || !user) return;
+    if (!replyText.trim() || !conv || !user || isSending) return;
     const to = conv.participants.find(p => p !== user.email)!;
-    await sendMessage(user.email, user.name, to, replyText.trim());
-    setReplyText('');
+    const lastOtherMessage = conv.messages.slice().reverse().find(message => message.from !== user.email || message.to !== user.email);
+    const toUserId = lastOtherMessage
+      ? lastOtherMessage.from === user.email
+        ? lastOtherMessage.toUserId
+        : lastOtherMessage.fromUserId
+      : conv.participantIds.find(id => id !== user.id);
+    setIsSending(true);
+    try {
+      await sendMessage(user.email, user.name, to, replyText.trim(), toUserId);
+      setReplyText('');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const getOtherName = (conv: ReturnType<typeof getInbox>[0]) => {
@@ -282,11 +286,13 @@ function InboxTab() {
         </div>
         <div className="p-3 border-t border-neutral-100 dark:border-neutral-800 flex gap-2">
             <input value={replyText} onChange={e => setReplyText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && send()}
+              onKeyDown={e => {
+                if (e.key === 'Enter') send();
+              }}
               placeholder={t('messages.typeMessage')}
               className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#171717] dark:focus:ring-white text-neutral-800 dark:text-white placeholder:text-neutral-400"
             />
-          <button onClick={send} disabled={!replyText.trim()}
+          <button onClick={send} disabled={!replyText.trim() || isSending}
             className="w-9 h-9 rounded-full bg-[#171717] dark:bg-white flex items-center justify-center hover:bg-black transition-colors disabled:opacity-30">
             <Send className="w-3.5 h-3.5 text-white dark:text-[#171717]" />
           </button>

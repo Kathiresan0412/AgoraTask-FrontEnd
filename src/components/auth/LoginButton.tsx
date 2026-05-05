@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  ChevronDown, User, Briefcase, Shield, LogOut, Settings, LogIn
+  ChevronDown, User, Briefcase, Shield, LogOut, Settings,MessageCircle, LogIn
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -23,8 +23,17 @@ export function LoginButton() {
     router.push(`/${country}/login`);
   };
 
+  const handleDropdownBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    const nextFocusedElement = event.relatedTarget;
+
+    if (!nextFocusedElement || !event.currentTarget.contains(nextFocusedElement)) {
+      setIsOpen(false);
+    }
+  };
+
   // ── Logged-in state ─────────────────────────────────────────────
   if (user) {
+    const roleLabel = t(`profile.roles.${user.role}`);
     const roleBadgeColor =
       user.role === 'admin'
         ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
@@ -40,8 +49,9 @@ export function LoginButton() {
         : `/${country}/dashboard`;
 
     return (
-      <div className="relative">
+      <div className="relative" onBlur={handleDropdownBlur}>
         <button
+          type="button"
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-2.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-1.5 hover:shadow-md transition-all"
           aria-expanded={isOpen}
@@ -89,7 +99,7 @@ export function LoginButton() {
                     <p className="text-sm font-bold text-[#171717] dark:text-white truncate">{user.name}</p>
                     <p className="text-xs text-neutral-400 truncate">{user.email}</p>
                     <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full mt-1 ${roleBadgeColor}`}>
-                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      {roleLabel}
                     </span>
                   </div>
                 </div>
@@ -109,6 +119,20 @@ export function LoginButton() {
                   <User className="w-4 h-4" />
                 )}
                 {t('nav.dashboard')}
+              </Link>
+              <Link
+                href={`/${country}/messages`}
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-[#171717] dark:hover:text-white transition-colors"
+              >
+                {user.role === 'admin' ? (
+                  <Shield className="w-4 h-4" />
+                ) : user.role === 'provider' ? (
+                  <Briefcase className="w-4 h-4" />
+                ) : (
+                  <MessageCircle className="w-4 h-4" />
+                )}
+                {t('nav.messages')}
               </Link>
 
               {/* Profile link */}

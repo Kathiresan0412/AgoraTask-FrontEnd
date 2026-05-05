@@ -139,7 +139,7 @@ export default function RegisterPage() {
             <button 
               onClick={() => setRole('customer')}
               type="button"
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all ${
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all cursor-pointer ${
                 role === 'customer' 
                   ? 'bg-white dark:bg-neutral-800 shadow-sm text-[#171717] dark:text-white' 
                   : 'text-neutral-500 hover:text-[#171717] dark:hover:text-white'
@@ -150,7 +150,7 @@ export default function RegisterPage() {
             <button 
               onClick={() => setRole('provider')}
               type="button"
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all ${
+              className={`flex-1 py-2.5 text-sm font-semibold rounded-full transition-all cursor-pointer ${
                 role === 'provider' 
                   ? 'bg-white dark:bg-neutral-800 shadow-sm text-[#171717] dark:text-white' 
                   : 'text-neutral-500 hover:text-[#171717] dark:hover:text-white'

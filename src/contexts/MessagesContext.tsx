@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { messageApi } from '@/lib/api';
 import type { ConversationDto, MessageDto } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,8 +31,8 @@ interface MessagesContextType {
   conversations: Conversation[];
   isLoading: boolean;
   error: string;
-  refreshConversations: () => Promise<void>;
-  sendMessage: (from: string, fromName: string, to: string, text: string) => Promise<void>;
+  refreshConversations: (options?: { silent?: boolean }) => Promise<void>;
+  sendMessage: (from: string, fromName: string, to: string, text: string, toUserId?: string) => Promise<void>;
   editMessage: (messageId: string, text: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   getConversation: (emailA: string, emailB: string) => Conversation | undefined;
@@ -58,14 +58,15 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const pendingSendKeys = useRef(new Set<string>());
 
-  const refreshConversations = useCallback(async () => {
+  const refreshConversations = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!user) {
       setConversations([]);
       return;
     }
 
-    setIsLoading(true);
+    if (!options.silent) setIsLoading(true);
     setError('');
     try {
       const { data } = await messageApi.listConversations();
@@ -73,37 +74,66 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setError('Could not load messages.');
     } finally {
-      setIsLoading(false);
+      if (!options.silent) setIsLoading(false);
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setConversations([]);
+      return;
+    }
+
+    refreshConversations();
+    const syncTimer = window.setInterval(() => {
+      refreshConversations({ silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(syncTimer);
+  }, [refreshConversations, user]);
+
   const getConvId = (a: string, b: string) => [a, b].sort().join('|');
 
-  const sendMessage = useCallback(async (_from: string, _fromName: string, to: string, text: string) => {
-    const { data } = await messageApi.send({ toEmail: to, text });
-    const message = mapMessage(data);
+  const sendMessage = useCallback(async (_from: string, _fromName: string, to: string, text: string, toUserId?: string) => {
+    const trimmedText = text.trim();
+    const sendKey = `${toUserId || to}:${trimmedText}`;
 
-    setConversations(prev => {
-      const existing = prev.find(conversation => conversation.id === message.conversationId);
-      if (existing) {
-        return prev.map(conversation => (
-          conversation.id === message.conversationId
-            ? { ...conversation, messages: [...conversation.messages, message] }
-            : conversation
-        ));
-      }
+    if (pendingSendKeys.current.has(sendKey)) return;
+    pendingSendKeys.current.add(sendKey);
 
-      return [
-        {
-          id: message.conversationId,
-          participantIds: [message.fromUserId, message.toUserId],
-          participants: [message.from, message.to],
-          participantNames: [message.fromName, message.toName],
-          messages: [message],
-        },
-        ...prev,
-      ];
-    });
+    try {
+      const { data } = await messageApi.send(toUserId ? { toUserId, text: trimmedText } : { toEmail: to, text: trimmedText });
+      const message = mapMessage(data);
+
+      setConversations(prev => {
+        const existing = prev.find(conversation => conversation.id === message.conversationId);
+        if (existing) {
+          return prev.map(conversation => (
+            conversation.id === message.conversationId
+              ? {
+                  ...conversation,
+                  messages: conversation.messages.some(item => item.id === message.id)
+                    ? conversation.messages.map(item => item.id === message.id ? message : item)
+                    : [...conversation.messages, message],
+                }
+              : conversation
+          ));
+        }
+
+        return [
+          {
+            id: message.conversationId,
+            participantIds: [message.fromUserId, message.toUserId],
+            participants: [message.from, message.to],
+            participantNames: [message.fromName, message.toName],
+            messages: [message],
+          },
+          ...prev,
+        ];
+      });
+    } finally {
+      pendingSendKeys.current.delete(sendKey);
+    }
   }, []);
 
   const editMessage = useCallback(async (messageId: string, text: string) => {

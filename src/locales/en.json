@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "AgoraTask",
+    "appName": "Agora Task",
     "tagline": "Service Marketplace",
     "login": "Sign In",
     "logout": "Sign Out",
@@ -77,6 +77,19 @@
     "RegisterAsProfessional": "Register as a Professional"
 
   },
+  "about": {
+    "title": "About AgoraTask",
+    "subtitle": "AgoraTask helps customers discover trusted local service providers and gives professionals a cleaner way to be found, manage requests, and grow their work.",
+    "customersTitle": "For customers",
+    "customersText": "Search services by category and location, compare providers, read reviews, and contact the right professional with less friction.",
+    "providersTitle": "For providers",
+    "providersText": "Create a clear service profile, showcase your work, receive customer requests, and keep your business visible in the places you serve.",
+    "trustTitle": "Built around trust",
+    "trustText": "Profiles, ratings, service details, and direct messaging help both sides make confident decisions before work begins.",
+    "ctaTitle": "Find the right service today",
+    "ctaText": "Browse available services and connect with local professionals near you.",
+    "ctaButton": "Explore Services"
+  },
   "login": {
     "title": "Welcome back",
     "subtitle": "Sign in to your AgoraTask account",
@@ -151,6 +164,11 @@
   "profile": {
     "title": "Profile & Settings",
     "personalInfo": "Personal Information",
+    "roles": {
+      "admin": "Admin",
+      "provider": "Provider",
+      "customer": "Customer"
+    },
     "displayName": "Display Name",
     "emailReadOnly": "Email Address (read-only)",
     "changePhoto": "Change photo",

@@ -218,6 +218,7 @@ export default function ProviderProfilePage() {
   };
 
   const handleSendMessage = async () => {
+    if (messageStatus === 'sending') return;
     if (!provider) return;
 
     if (!user) {
@@ -237,7 +238,7 @@ export default function ProviderProfilePage() {
     setMessageStatus('sending');
     setMessageError('');
     try {
-      await sendMessage(user.email, user.name, provider.email, messageText.trim());
+      await sendMessage(user.email, user.name, provider.email, messageText.trim(), provider.userId);
       setMessageStatus('sent');
       setMessageText('');
     } catch {

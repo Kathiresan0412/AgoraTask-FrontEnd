@@ -34,7 +34,7 @@ export function SettingsPanel() {
 
   if (!user) return null;
 
-  const roleLabel = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+  const roleLabel = t(`profile.roles.${user.role}`);
   const roleBadgeColor =
     user.role === 'admin'
       ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
