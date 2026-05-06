@@ -240,10 +240,15 @@ export default function ServiceDetailPage() {
           rating: reviewRating,
           comment: reviewComment.trim(),
         });
-        const nextReview = mapReview(data);
-        setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
         resetReviewForm();
-        setReviewNotice(t('serviceDetail.reviewUpdated'));
+        if (data.status === 'visible') {
+          const nextReview = mapReview(data);
+          setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
+          setReviewNotice(t('serviceDetail.reviewUpdated'));
+        } else {
+          setReviews(reviews.filter(review => review.id !== reviewIdToUpdate));
+          setReviewNotice('Review update sent for admin approval. It will appear after moderation.');
+        }
         return;
       }
 
@@ -251,9 +256,11 @@ export default function ServiceDetailPage() {
         rating: reviewRating,
         comment: reviewComment.trim(),
       });
-      setReviews([mapReview(data), ...reviews]);
       resetReviewForm();
-      setReviewNotice(t('serviceDetail.reviewAdded'));
+      if (data.status === 'visible') {
+        setReviews([mapReview(data), ...reviews]);
+      }
+      setReviewNotice('Review sent for admin approval. It will appear after moderation.');
     } catch (err: unknown) {
       setReviewNotice(getApiErrorMessage(err) || t('serviceDetail.reviewSaveError'));
     }
@@ -473,6 +480,9 @@ export default function ServiceDetailPage() {
                   </button>
                 )}
               </div>
+              <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                Login as a customer to review. Every new review is checked by admin before it becomes public.
+              </p>
               {isReviewFormOpen && (
                 <>
                   <div className="mb-4 mt-4 flex gap-1">

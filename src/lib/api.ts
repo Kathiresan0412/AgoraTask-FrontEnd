@@ -224,6 +224,7 @@ export interface PublicProviderDto {
 }
 
 export interface PublicServiceFilters {
+  country?: 'lk' | 'ca';
   category?: string;
   provinceId?: string;
   districtId?: string;
@@ -270,6 +271,24 @@ export interface ReviewPayload {
 export interface ReviewTarget {
   providerId?: string;
   providerServiceId?: string;
+}
+
+export interface AdminReviewDto {
+  id: string;
+  bookingId: string | null;
+  providerServiceId: string | null;
+  providerId: string;
+  customerId: string | null;
+  customerName: string;
+  customerEmail: string;
+  providerName: string;
+  providerEmail: string;
+  serviceTitle: string;
+  rating: number;
+  comment: string;
+  status: 'pending' | 'visible' | 'hidden' | 'deleted';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BookingDto {
@@ -335,6 +354,12 @@ export const adminApi = {
 
   listProviders: (filters: AdminProviderFilters = {}) =>
     api.get<AdminProviderDto[]>('/admin/providers', { params: filters }),
+
+  listReviews: (status = 'all') =>
+    api.get<AdminReviewDto[]>('/admin/reviews', { params: { status } }),
+
+  updateReviewStatus: (id: string, status: AdminReviewDto['status']) =>
+    api.patch<AdminReviewDto>(`/admin/reviews/${id}/status`, { status }),
 
   approveProvider: (id: string) =>
     api.post<{ success: boolean; message: string }>(`/admin/providers/${id}/approve`),

@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useLanguage } from '@/contexts/LanguageContext';
+import Image from 'next/image';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -46,13 +47,16 @@ export default function ForgotPasswordPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <Link href={`/${country}`} className="flex items-center gap-2">
-            <div className="bg-[#171717] dark:bg-white p-2.5 rounded-2xl text-white dark:text-[#171717] shadow-sm">
+            {/* <div className="bg-[#171717] dark:bg-white p-2.5 rounded-2xl text-white dark:text-[#171717] shadow-sm">
               <Zap className="w-6 h-6" />
-            </div>
+            </div> */}
+             <div className="flex h-15 w-15 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                            <Image src="/agoratask-icon.svg" alt="AgoraTask" width={48} height={48} className="block h-full w-full object-contain" priority />
+                          </div>
             <span className="text-2xl font-extrabold tracking-tight text-[#171717] dark:text-white">AgoraTask</span>
           </Link>
         </div>
-        <h2 className="mt-8 text-center text-3xl font-bold tracking-tight text-[#171717] dark:text-white">
+        <h2 className="mt-5 text-center text-3xl font-bold tracking-tight text-[#171717] dark:text-white">
           Reset your password
         </h2>
         <p className="mt-2 text-center text-sm text-neutral-500 dark:text-neutral-400">

@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Briefcase, Calendar, MessageSquare, DollarSign,
   Settings, Star, Zap,
-  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag, Edit3, Trash2, Eye
+  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag, Edit3, Trash2, Eye, Search
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
@@ -44,6 +44,21 @@ const formatReviewDate = (value: string) => new Date(value).toLocaleDateString(u
   month: 'short',
   day: 'numeric',
 });
+
+const minutesToHoursInput = (minutes?: number | null) => {
+  if (!minutes) return '';
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? String(hours) : String(Number(hours.toFixed(2)));
+};
+
+const hoursToMinutes = (hours: string) => Math.round(Number(hours) * 60);
+
+const formatDurationHours = (minutes?: number | null) => {
+  if (!minutes) return 'Flexible duration';
+  const hours = minutes / 60;
+  const formatted = Number.isInteger(hours) ? String(hours) : String(Number(hours.toFixed(2)));
+  return `${formatted} ${hours === 1 ? 'hour' : 'hours'}`;
+};
 
 function ServiceTypeVisual({ type, selected = false }: { type: ServiceTypeDto; selected?: boolean }) {
   const image = getServiceTypeImage(type);
@@ -134,6 +149,7 @@ export default function ProviderDashboard() {
   const [formDuration, setFormDuration] = useState('');
   const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('pending_review');
   const [formServiceTypeIds, setFormServiceTypeIds] = useState<string[]>([]);
+  const [serviceTypeSearch, setServiceTypeSearch] = useState('');
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
   const [formProvinceId, setFormProvinceId] = useState('');
   const [formDistrictId, setFormDistrictId] = useState('');
@@ -223,6 +239,17 @@ export default function ProviderDashboard() {
       [type.parent_id]: [...(groups[type.parent_id] || []), type],
     };
   }, {});
+  const serviceTypeQuery = serviceTypeSearch.trim().toLowerCase();
+  const matchesServiceTypeQuery = (type: ServiceTypeDto) =>
+    type.name.toLowerCase().includes(serviceTypeQuery) ||
+    type.description?.toLowerCase().includes(serviceTypeQuery) ||
+    type.slug.toLowerCase().includes(serviceTypeQuery);
+  const filteredRootServiceTypes = serviceTypeQuery
+    ? rootServiceTypes.filter(type => {
+      const children = childServiceTypesByParent[type.id] || [];
+      return matchesServiceTypeQuery(type) || children.some(matchesServiceTypeQuery);
+    })
+    : rootServiceTypes;
 
   const resetServiceForm = () => {
     setEditingServiceId(null);
@@ -233,6 +260,7 @@ export default function ProviderDashboard() {
     setFormDuration('');
     setFormStatus('pending_review');
     setFormServiceTypeIds([]);
+    setServiceTypeSearch('');
     setExpandedServiceTypeIds([]);
     setFormProvinceId('');
     setFormDistrictId('');
@@ -298,7 +326,7 @@ export default function ProviderDashboard() {
     setFormDescription(service.description || '');
     setFormPrice(service.base_price === null || service.base_price === undefined ? '' : String(service.base_price));
     setFormPriceType(service.price_type);
-    setFormDuration(service.duration_mins ? String(service.duration_mins) : '');
+    setFormDuration(minutesToHoursInput(service.duration_mins));
     setFormStatus(service.status);
     setFormServiceTypeIds(service.service_types.map(type => type.id));
     setExpandedServiceTypeIds(Array.from(new Set(service.service_types.map(type => type.parent_id).filter(Boolean) as string[])));
@@ -319,6 +347,11 @@ export default function ProviderDashboard() {
       return;
     }
 
+    if (formDuration && (!Number.isFinite(Number(formDuration)) || Number(formDuration) <= 0)) {
+      setServicesError('Duration must be more than 0 hours.');
+      return;
+    }
+
     setSavingService(true);
     setServicesError('');
     try {
@@ -327,9 +360,10 @@ export default function ProviderDashboard() {
         description: formDescription.trim(),
         base_price: formPrice ? Number(formPrice) : null,
         price_type: formPriceType,
-        duration_mins: formDuration ? Number(formDuration) : null,
+        duration_mins: formDuration ? hoursToMinutes(formDuration) : null,
         service_area: [
           getLocationLabel(formProvinceId, effectiveFormDistrictId, formCityId, countryCode),
+          `country:${countryCode}`,
           `province:${formProvinceId}`,
           `district:${effectiveFormDistrictId}`,
           `city:${formCityId}`,
@@ -596,11 +630,36 @@ export default function ProviderDashboard() {
         )}
       </div>
 
+      <div className="relative mb-3">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="search"
+          value={serviceTypeSearch}
+          onChange={event => setServiceTypeSearch(event.target.value)}
+          placeholder="Search service types"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-9 text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:border-slate-500 dark:focus:ring-white/10"
+        />
+        {serviceTypeSearch && (
+          <button
+            type="button"
+            onClick={() => setServiceTypeSearch('')}
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+            aria-label="Clear service type search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       <div className="space-y-3">
-        {rootServiceTypes.length > 0 ? (
-          rootServiceTypes.map(type => {
+        {filteredRootServiceTypes.length > 0 ? (
+          filteredRootServiceTypes.map(type => {
             const children = childServiceTypesByParent[type.id] || [];
-            const expanded = expandedServiceTypeIds.includes(type.id);
+            const parentMatches = serviceTypeQuery ? matchesServiceTypeQuery(type) : false;
+            const visibleChildren = serviceTypeQuery && !parentMatches
+              ? children.filter(matchesServiceTypeQuery)
+              : children;
+            const expanded = serviceTypeQuery ? true : expandedServiceTypeIds.includes(type.id);
             const childSelectedCount = children.filter(child => formServiceTypeIds.includes(child.id)).length;
             const selected = formServiceTypeIds.includes(type.id);
 
@@ -625,7 +684,7 @@ export default function ProviderDashboard() {
                 </button>
                 {expanded && (
                   <div className="grid gap-3 border-t border-slate-100 p-3 dark:border-slate-800 sm:grid-cols-2">
-                    {children.map(child => renderServiceTypeOption(child))}
+                    {visibleChildren.map(child => renderServiceTypeOption(child))}
                   </div>
                 )}
               </div>
@@ -633,7 +692,7 @@ export default function ProviderDashboard() {
           })
         ) : (
           <p className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-            No service types returned by the API.
+            {serviceTypeQuery ? 'No service types match your search.' : 'No service types returned by the API.'}
           </p>
         )}
       </div>
@@ -666,7 +725,7 @@ export default function ProviderDashboard() {
           <h2 className="font-bold text-slate-900 dark:text-white mb-4">{editingServiceId ? 'Edit Service' : 'Create Service'}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Service title" />
-            <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="1" placeholder="Duration minutes" />
+            <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="0.25" step="0.25" placeholder="Duration hours" />
             {renderServiceTypePicker()}
             <Textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Description" className="md:col-span-2" />
             <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" min="0" placeholder="Base price" />
@@ -835,7 +894,7 @@ export default function ProviderDashboard() {
               <span className="w-fit rounded-full bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">{service.status}</span>
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-500">
-              <span>{formatServicePrice(service.base_price, service.price_type, countryCode)} · {service.price_type}</span>
+              <span>{formatServicePrice(service.base_price, service.price_type, countryCode)} · {service.price_type} · {formatDurationHours(service.duration_mins)}</span>
               {service.service_area?.[0] && <span className="inline-flex items-center gap-1"><MapPin className="w-4 h-4" /> {service.service_area[0]}</span>}
             </div>
             {service.service_types.length > 0 && (
@@ -1059,9 +1118,12 @@ export default function ProviderDashboard() {
       </aside>
 
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-20 flex-col items-center border-r border-slate-200 bg-white px-3 py-4 dark:border-slate-800 dark:bg-slate-900 md:flex lg:hidden">
-        <div className="mb-6 rounded-xl bg-indigo-600 p-2.5">
+        {/* <div className="mb-6 rounded-xl bg-indigo-600 p-2.5">
           <Zap className="h-5 w-5 text-white" />
-        </div>
+        </div> */}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                        <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
+                      </div>
         <nav className="flex flex-1 flex-col items-center gap-2">
           {NAV.map(item => renderNavButton(item, 'rail'))}
         </nav>
@@ -1088,9 +1150,12 @@ export default function ProviderDashboard() {
           <aside className="relative flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col bg-white shadow-2xl dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-5 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-xl bg-indigo-600 p-2">
+                {/* <div className="rounded-xl bg-indigo-600 p-2">
                   <Zap className="h-5 w-5 text-white" />
-                </div>
+                </div> */}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
+                                <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
+                              </div>
                 <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">AgoraTask</span>
               </div>
               <Button

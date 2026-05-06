@@ -273,10 +273,15 @@ export default function ProviderProfilePage() {
           rating: reviewRating,
           comment: reviewComment.trim(),
         });
-        const nextReview = mapReview(data);
-        setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
         resetReviewForm();
-        setReviewNotice('Review updated.');
+        if (data.status === 'visible') {
+          const nextReview = mapReview(data);
+          setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
+          setReviewNotice('Review updated.');
+        } else {
+          setReviews(reviews.filter(review => review.id !== reviewIdToUpdate));
+          setReviewNotice('Review update sent for admin approval. It will appear after moderation.');
+        }
         return;
       }
 
@@ -284,9 +289,11 @@ export default function ProviderProfilePage() {
         rating: reviewRating,
         comment: reviewComment.trim(),
       });
-      setReviews([mapReview(data), ...reviews]);
       resetReviewForm();
-      setReviewNotice('Review added.');
+      if (data.status === 'visible') {
+        setReviews([mapReview(data), ...reviews]);
+      }
+      setReviewNotice('Review sent for admin approval. It will appear after moderation.');
     } catch (err: unknown) {
       setReviewNotice(getApiErrorMessage(err) || 'Could not save review to the API.');
     }
@@ -498,6 +505,9 @@ export default function ProviderProfilePage() {
                     </button>
                   )}
                 </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  Login as a customer to review. Every new review is checked by admin before it becomes public.
+                </p>
                 {isReviewFormOpen && (
                   <>
                     <div className="flex gap-1 mb-4 mt-4">
