@@ -12,26 +12,36 @@ import { serviceTypeApi, type ServiceTypeDto } from '@/lib/api';
 
 const primaryLinks = [
   { label: 'About', path: 'about' },
+  { label: 'Blog', path: 'blog' },
+  { label: 'FAQ', path: 'faq' },
   { label: 'Browse Services', path: 'services' },
   { label: 'Customer Dashboard', path: 'dashboard' },
   { label: 'Messages', path: 'messages' },
-  { label: 'Help', path: 'about' },
+  { label: 'Help', path: 'faq' },
   { label: 'Contact Us', path: 'about' },
   { label: 'Be a Professional', path: 'register?role=provider' },
   { label: 'Provider Dashboard', path: 'provider-dashboard' },
 ];
 
-const bottomLinks = ['Contact', 'Privacy', 'Terms', 'Cancellation Policy', 'Accessibility Tools'];
+const bottomLinks = [
+  { label: 'Contact', path: 'about' },
+  { label: 'Privacy', path: 'policy' },
+  { label: 'Terms', path: 'terms' },
+  { label: 'FAQ', path: 'faq' },
+  { label: 'Blog', path: 'blog' },
+  { label: 'Cancellation Policy', path: 'terms' },
+  { label: 'Accessibility Tools', path: 'policy' },
+];
 
 const fallbackServices = ['House Cleaning', 'Handyman', 'Plumbing', 'Electrical', 'Moving Help', 'Painting', 'Furniture Assembly'];
 
 const socialLinks = [
-  { label: 'Twitter', mark: 'X' },
-  { label: 'Facebook', mark: 'f' },
-  { label: 'Instagram', mark: 'ig' },
-  { label: 'LinkedIn', mark: 'in' },
-  { label: 'Reviews', mark: '*' },
-  { label: 'Chat', mark: 'cb' },
+  { label: 'Twitter', mark: 'X', path: 'about' },
+  { label: 'Facebook', mark: 'f', path: 'about' },
+  { label: 'Instagram', mark: 'ig', path: 'about' },
+  { label: 'LinkedIn', mark: 'in', path: 'about' },
+  { label: 'Reviews', mark: '*', path: '#reviews' },
+  { label: 'Chat', mark: 'cb', path: 'messages' },
 ];
 
 const countryOptions: SupportedCountryCode[] = ['lk', 'ca'];
@@ -144,10 +154,10 @@ export function Footer() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              {socialLinks.map(({ label, mark }) => (
+              {socialLinks.map(({ label, mark, path }) => (
                 <Link
                   key={label}
-                  href={`/${currentCountry}/about`}
+                  href={path.startsWith('#') ? `/${currentCountry}${path}` : `/${currentCountry}/${path}`}
                   aria-label={label}
                   className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-700 text-xs font-black uppercase text-neutral-400 transition-colors hover:border-neutral-500 hover:text-white"
                 >
@@ -212,8 +222,8 @@ export function Footer() {
         <div className="mt-10 flex flex-col gap-6 border-t border-neutral-700 pt-6 lg:flex-row lg:items-start lg:justify-between">
           <nav className="flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold" aria-label="Legal links">
             {bottomLinks.map(link => (
-              <Link key={link} href={`/${currentCountry}/about`} className="transition-colors hover:text-white">
-                {link}
+              <Link key={link.label} href={`/${currentCountry}/${link.path}`} className="transition-colors hover:text-white">
+                {link.label}
               </Link>
             ))}
           </nav>

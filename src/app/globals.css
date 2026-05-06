@@ -252,6 +252,20 @@
   animation-range: entry 10% cover 35%;
 }
 
+.home-review-marquee {
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.home-review-track {
+  display: flex;
+  width: max-content;
+  animation: home-review-marquee 42s linear infinite;
+}
+
+.home-review-marquee:hover .home-review-track {
+  animation-play-state: paused;
+}
+
 @keyframes loader-float {
   0%, 100% {
     transform: translateY(0) scale(1);
@@ -317,5 +331,14 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes home-review-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
   }
 }
