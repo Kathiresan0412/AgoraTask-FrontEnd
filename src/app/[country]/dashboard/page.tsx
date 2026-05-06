@@ -6,7 +6,7 @@ import { Footer } from '@/components/layout/Footer';
 import { CalendarDays, Clock, Search, User, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import CustomerAssistant from '@/components/chat/CustomerAssistant';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { bookingApi, type BookingDto } from '@/lib/api';
@@ -36,6 +36,8 @@ export default function UserDashboard() {
   const { user } = useAuth();
   const params = useParams();
   const country = params?.country as string || 'lk';
+  const router = useRouter();
+  const pathname = usePathname();
   const countryCode = normalizeCountryCode(country);
   const { t } = useLanguage();
   const [bookings, setBookings] = useState<BookingDto[]>([]);
@@ -45,7 +47,23 @@ export default function UserDashboard() {
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      router.replace(`/${country}/login?returnTo=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    if (user.role === 'provider') {
+      router.replace(`/${country}/provider-dashboard`);
+      return;
+    }
+
+    if (user.role === 'admin') {
+      router.replace(`/${country}/admin`);
+    }
+  }, [country, pathname, router, user]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'customer') return;
 
     let cancelled = false;
     const loadBookings = async () => {
@@ -78,6 +96,10 @@ export default function UserDashboard() {
       booking.status.toLowerCase().includes(query)
     );
   }, [bookings, searchText]);
+
+  if (!user || user.role !== 'customer') {
+    return null;
+  }
 
   const cancelBooking = async (bookingId: string) => {
     setUpdatingBookingId(bookingId);

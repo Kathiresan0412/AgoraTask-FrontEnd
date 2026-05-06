@@ -5,6 +5,8 @@ import { Hero } from '@/components/home/Hero';
 import { Categories } from '@/components/home/Categories';
 import { PopularServices } from '@/components/home/PopularServices';
 import { ProviderCTA } from '@/components/home/ProviderCTA';
+import { HomeReviews } from '@/components/home/HomeReviews';
+import CustomerAssistant from '@/components/chat/CustomerAssistant';
 
 export default function Home() {
   return (
@@ -13,7 +15,9 @@ export default function Home() {
       <Hero />
       <Categories />
       <PopularServices />
+      <HomeReviews />
       <ProviderCTA />
+      <CustomerAssistant allowGuest />
       <Footer />
     </div>
   );

@@ -136,6 +136,7 @@ export default function ServicesPage() {
     setServicesError('');
     try {
       const { data } = await publicServiceApi.list({
+        country: countryCode,
         category: categoryFilter,
         provinceId: provinceId || undefined,
         districtId: effectiveDistrictId || undefined,
@@ -150,7 +151,7 @@ export default function ServicesPage() {
     } finally {
       setServicesLoading(false);
     }
-  }, [categoryFilter, cityId, effectiveDistrictId, pagination.page, provinceId, t]);
+  }, [categoryFilter, cityId, countryCode, effectiveDistrictId, pagination.page, provinceId, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(loadServices, 200);
