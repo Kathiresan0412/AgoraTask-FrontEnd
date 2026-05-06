@@ -112,6 +112,15 @@ export interface AdminProviderFilters {
   location?: string;
 }
 
+export interface AdminLogFilters {
+  search?: string;
+  success?: string;
+  action?: string;
+  entityType?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface AdminServiceDto {
   id: string;
   providerId: string;
@@ -291,6 +300,37 @@ export interface AdminReviewDto {
   updatedAt: string;
 }
 
+export interface AdminLoginHistoryDto {
+  id: string;
+  userId: string | null;
+  email: string;
+  success: boolean;
+  failureReason: string;
+  ipAddress: string;
+  userAgent: string;
+  createdAt: string;
+  user: {
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+}
+
+export interface AdminActivityLogDto {
+  id: string;
+  actorId: string | null;
+  actorName: string;
+  actorEmail: string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, unknown>;
+  ipAddress: string;
+  userAgent: string;
+  createdAt: string;
+}
+
 export interface BookingDto {
   id: string;
   serviceId: string | null;
@@ -357,6 +397,12 @@ export const adminApi = {
 
   listReviews: (status = 'all') =>
     api.get<AdminReviewDto[]>('/admin/reviews', { params: { status } }),
+
+  listLoginHistory: (filters: AdminLogFilters = {}) =>
+    api.get<AdminLoginHistoryDto[]>('/admin/login-history', { params: filters }),
+
+  listActivityLogs: (filters: AdminLogFilters = {}) =>
+    api.get<AdminActivityLogDto[]>('/admin/activity-logs', { params: filters }),
 
   updateReviewStatus: (id: string, status: AdminReviewDto['status']) =>
     api.patch<AdminReviewDto>(`/admin/reviews/${id}/status`, { status }),

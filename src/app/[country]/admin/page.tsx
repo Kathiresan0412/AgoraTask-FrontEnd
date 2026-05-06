@@ -7,14 +7,14 @@ import {
   LayoutDashboard, Users, Layers, Settings, ShieldAlert,
   LogOut, Plus, Trash2, Edit2, Check, X, Zap,
   ChevronRight, ChevronDown, Tag, Grid3X3, MessageSquare, Briefcase,
-  ClipboardList, Search, RefreshCw, Star
+  ClipboardList, Search, RefreshCw, Star, History, Activity
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { MessagesPanel } from '@/components/chat/MessagesPanel';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { adminApi, serviceTypeApi } from '@/lib/api';
-import type { AdminProviderDto, AdminReviewDto, AdminServiceDto, ServiceTypeDto } from '@/lib/api';
+import type { AdminActivityLogDto, AdminLoginHistoryDto, AdminProviderDto, AdminReviewDto, AdminServiceDto, ServiceTypeDto } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image'; 
 
@@ -30,8 +30,8 @@ interface ServiceType {
 }
 
 // ── Sidebar nav items ─────────────────────────────────────────────
-type Section = 'dashboard' | 'services' | 'reviews' | 'service-types' | 'providers' | 'messages' | 'settings';
-const SECTIONS: Section[] = ['dashboard', 'services', 'reviews', 'service-types', 'providers', 'messages', 'settings'];
+type Section = 'dashboard' | 'services' | 'reviews' | 'service-types' | 'providers' | 'login-history' | 'activity-logs' | 'messages' | 'settings';
+const SECTIONS: Section[] = ['dashboard', 'services', 'reviews', 'service-types', 'providers', 'login-history', 'activity-logs', 'messages', 'settings'];
 
 const NAV = [
   { id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard },
@@ -39,6 +39,8 @@ const NAV = [
   { id: 'reviews' as Section, label: 'Reviews', icon: Star },
   { id: 'service-types' as Section, label: 'Service Types', icon: Layers },
   { id: 'providers' as Section, label: 'Providers', icon: Users },
+  { id: 'login-history' as Section, label: 'Login History', icon: History },
+  { id: 'activity-logs' as Section, label: 'Activity Logs', icon: Activity },
   { id: 'messages' as Section, label: 'Messages', icon: MessageSquare },
   { id: 'settings' as Section, label: 'Settings', icon: Settings },
 ];
@@ -153,6 +155,25 @@ function formatReviewStatus(status: AdminReviewDto['status']) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function loginStatusClass(success: boolean) {
+  return success
+    ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
+    : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
+}
+
+function formatActionLabel(action: string) {
+  return action.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function formatUserAgent(userAgent: string) {
+  if (!userAgent) return 'Unknown device';
+  if (userAgent.includes('Chrome')) return 'Chrome';
+  if (userAgent.includes('Firefox')) return 'Firefox';
+  if (userAgent.includes('Safari')) return 'Safari';
+  if (userAgent.includes('Postman')) return 'Postman';
+  return userAgent.slice(0, 42);
+}
+
 function mapServiceType(row: ServiceTypeDto): ServiceType {
   return {
     id: row.id,
@@ -209,6 +230,21 @@ export default function AdminDashboard() {
   const [providerCategoryFilter, setProviderCategoryFilter] = useState('all');
   const [providerLocationFilter, setProviderLocationFilter] = useState('all');
   const [updatingProviderId, setUpdatingProviderId] = useState<string | null>(null);
+  const [loginHistory, setLoginHistory] = useState<AdminLoginHistoryDto[]>([]);
+  const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
+  const [loginHistoryError, setLoginHistoryError] = useState('');
+  const [loginSearch, setLoginSearch] = useState('');
+  const [loginSuccessFilter, setLoginSuccessFilter] = useState('all');
+  const [loginFromFilter, setLoginFromFilter] = useState('');
+  const [loginToFilter, setLoginToFilter] = useState('');
+  const [activityLogs, setActivityLogs] = useState<AdminActivityLogDto[]>([]);
+  const [activityLogsLoading, setActivityLogsLoading] = useState(false);
+  const [activityLogsError, setActivityLogsError] = useState('');
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityActionFilter, setActivityActionFilter] = useState('all');
+  const [activityEntityFilter, setActivityEntityFilter] = useState('all');
+  const [activityFromFilter, setActivityFromFilter] = useState('');
+  const [activityToFilter, setActivityToFilter] = useState('');
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
 
   // Create-form state
@@ -295,6 +331,43 @@ export default function AdminDashboard() {
     }
   }, [reviewStatusFilter]);
 
+  const loadLoginHistory = useCallback(async () => {
+    setLoginHistoryLoading(true);
+    setLoginHistoryError('');
+    try {
+      const { data } = await adminApi.listLoginHistory({
+        search: loginSearch.trim() || undefined,
+        success: loginSuccessFilter,
+        from: loginFromFilter || undefined,
+        to: loginToFilter || undefined,
+      });
+      setLoginHistory(data);
+    } catch {
+      setLoginHistoryError('Could not load login history from the database.');
+    } finally {
+      setLoginHistoryLoading(false);
+    }
+  }, [loginFromFilter, loginSearch, loginSuccessFilter, loginToFilter]);
+
+  const loadActivityLogs = useCallback(async () => {
+    setActivityLogsLoading(true);
+    setActivityLogsError('');
+    try {
+      const { data } = await adminApi.listActivityLogs({
+        search: activitySearch.trim() || undefined,
+        action: activityActionFilter,
+        entityType: activityEntityFilter,
+        from: activityFromFilter || undefined,
+        to: activityToFilter || undefined,
+      });
+      setActivityLogs(data);
+    } catch {
+      setActivityLogsError('Could not load activity logs from the database.');
+    } finally {
+      setActivityLogsLoading(false);
+    }
+  }, [activityActionFilter, activityEntityFilter, activityFromFilter, activitySearch, activityToFilter]);
+
   useEffect(() => {
     if (section !== 'service-types' || serviceTypesLoaded) return;
 
@@ -322,6 +395,26 @@ export default function AdminDashboard() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadProviders, section]);
+
+  useEffect(() => {
+    if (section !== 'login-history') return;
+
+    const timeoutId = window.setTimeout(() => {
+      loadLoginHistory();
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadLoginHistory, section]);
+
+  useEffect(() => {
+    if (section !== 'activity-logs') return;
+
+    const timeoutId = window.setTimeout(() => {
+      loadActivityLogs();
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadActivityLogs, section]);
 
   // ── Service type helpers ────────────────────────────────────────
   const openCreate = () => {
@@ -366,6 +459,8 @@ export default function AdminDashboard() {
   const pendingProviders = providers.filter(provider => provider.status === 'pending').length;
   const activeProviders = providers.filter(provider => provider.status === 'active').length;
   const rejectedProviders = providers.filter(provider => provider.status === 'rejected').length;
+  const activityActions = Array.from(new Set(activityLogs.map(log => log.action).filter(Boolean))).sort();
+  const activityEntityTypes = Array.from(new Set(activityLogs.map(log => log.entityType).filter(Boolean))).sort();
 
   const toggleServiceTypeExpanded = (id: string) => {
     setExpandedServiceTypeIds(prev =>
@@ -1160,6 +1255,265 @@ export default function AdminDashboard() {
     );
   };
 
+  const renderLoginHistory = () => {
+    const successfulLogins = loginHistory.filter(entry => entry.success).length;
+    const failedLogins = loginHistory.filter(entry => !entry.success).length;
+
+    return (
+      <div>
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Login History</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Audit successful and failed login attempts across user accounts.</p>
+          </div>
+          <button
+            onClick={loadLoginHistory}
+            disabled={loginHistoryLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${loginHistoryLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Loaded Attempts" value={loginHistory.length.toString()} accent="#3B82F6" />
+          <StatCard label="Successful" value={successfulLogins.toString()} accent="#10B981" />
+          <StatCard label="Failed" value={failedLogins.toString()} accent="#EF4444" />
+          <StatCard label="Unique Emails" value={new Set(loginHistory.map(entry => entry.email)).size.toString()} accent="#6366F1" />
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_170px_160px_160px] gap-3">
+              <label className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={loginSearch}
+                  onChange={event => setLoginSearch(event.target.value)}
+                  placeholder="Search by email"
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </label>
+              <select
+                value={loginSuccessFilter}
+                onChange={event => setLoginSuccessFilter(event.target.value)}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">All attempts</option>
+                <option value="success">Successful</option>
+                <option value="failed">Failed</option>
+              </select>
+              <input
+                type="date"
+                value={loginFromFilter}
+                onChange={event => setLoginFromFilter(event.target.value)}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Login history start date"
+              />
+              <input
+                type="date"
+                value={loginToFilter}
+                onChange={event => setLoginToFilter(event.target.value)}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Login history end date"
+              />
+            </div>
+          </div>
+
+          {loginHistoryError && (
+            <div className="mx-5 mt-5 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+              {loginHistoryError}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  {['Email', 'User', 'Status', 'Reason', 'IP', 'Device', 'Time'].map(header => (
+                    <th key={header} className="p-4 font-semibold text-sm text-slate-500 whitespace-nowrap">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loginHistoryLoading && Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index} className="border-b border-slate-100 dark:border-slate-800/50">
+                    {Array.from({ length: 7 }).map((__, cellIndex) => (
+                      <td key={cellIndex} className="p-4"><Skeleton className="h-4 w-28" /></td>
+                    ))}
+                  </tr>
+                ))}
+
+                {!loginHistoryLoading && loginHistory.map(entry => (
+                  <tr key={entry.id} className="border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="p-4 text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">{entry.email}</td>
+                    <td className="p-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                      {entry.user ? `${entry.user.name || entry.user.email} (${entry.user.role})` : 'Unknown'}
+                    </td>
+                    <td className="p-4 whitespace-nowrap">
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${loginStatusClass(entry.success)}`}>
+                        {entry.success ? 'Success' : 'Failed'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm text-slate-500 whitespace-nowrap">{entry.failureReason || '-'}</td>
+                    <td className="p-4 text-sm text-slate-500 whitespace-nowrap">{entry.ipAddress || '-'}</td>
+                    <td className="p-4 text-sm text-slate-500 whitespace-nowrap">{formatUserAgent(entry.userAgent)}</td>
+                    <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'Unknown'}
+                    </td>
+                  </tr>
+                ))}
+
+                {!loginHistoryLoading && loginHistory.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-10 text-center text-slate-400">
+                      <History className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                      <p className="font-medium">No login attempts match these filters.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderActivityLogs = () => (
+    <div>
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Activity Logs</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Track admin actions such as provider approvals, service moderation, and review changes.</p>
+        </div>
+        <button
+          onClick={loadActivityLogs}
+          disabled={activityLogsLoading}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 ${activityLogsLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Loaded Events" value={activityLogs.length.toString()} accent="#3B82F6" />
+        <StatCard label="Actions" value={activityActions.length.toString()} accent="#6366F1" />
+        <StatCard label="Entity Types" value={activityEntityTypes.length.toString()} accent="#10B981" />
+        <StatCard label="Actors" value={new Set(activityLogs.map(entry => entry.actorEmail || entry.actorId).filter(Boolean)).size.toString()} accent="#F59E0B" />
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_190px_170px_160px_160px] gap-3">
+            <label className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                value={activitySearch}
+                onChange={event => setActivitySearch(event.target.value)}
+                placeholder="Search action or entity type"
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </label>
+            <select
+              value={activityActionFilter}
+              onChange={event => setActivityActionFilter(event.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">All actions</option>
+              {activityActions.map(action => (
+                <option key={action} value={action}>{formatActionLabel(action)}</option>
+              ))}
+            </select>
+            <select
+              value={activityEntityFilter}
+              onChange={event => setActivityEntityFilter(event.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">All entities</option>
+              {activityEntityTypes.map(entityType => (
+                <option key={entityType} value={entityType}>{formatActionLabel(entityType)}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={activityFromFilter}
+              onChange={event => setActivityFromFilter(event.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Activity log start date"
+            />
+            <input
+              type="date"
+              value={activityToFilter}
+              onChange={event => setActivityToFilter(event.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Activity log end date"
+            />
+          </div>
+        </div>
+
+        {activityLogsError && (
+          <div className="mx-5 mt-5 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+            {activityLogsError}
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                {['Actor', 'Action', 'Entity', 'Metadata', 'IP', 'Time'].map(header => (
+                  <th key={header} className="p-4 font-semibold text-sm text-slate-500 whitespace-nowrap">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {activityLogsLoading && Array.from({ length: 5 }).map((_, index) => (
+                <tr key={index} className="border-b border-slate-100 dark:border-slate-800/50">
+                  {Array.from({ length: 6 }).map((__, cellIndex) => (
+                    <td key={cellIndex} className="p-4"><Skeleton className="h-4 w-32" /></td>
+                  ))}
+                </tr>
+              ))}
+
+              {!activityLogsLoading && activityLogs.map(entry => (
+                <tr key={entry.id} className="border-b border-slate-100 dark:border-slate-800/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="p-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                    <p className="font-semibold text-slate-900 dark:text-white">{entry.actorName || 'System'}</p>
+                    <p className="text-xs text-slate-500">{entry.actorEmail || entry.actorRole || 'No actor'}</p>
+                  </td>
+                  <td className="p-4 text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">{formatActionLabel(entry.action)}</td>
+                  <td className="p-4 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                    {entry.entityType ? formatActionLabel(entry.entityType) : '-'}
+                    {entry.entityId ? <span className="block max-w-40 truncate text-xs text-slate-400">{entry.entityId}</span> : null}
+                  </td>
+                  <td className="p-4 text-xs text-slate-500 max-w-72 truncate">
+                    {Object.keys(entry.metadata || {}).length ? JSON.stringify(entry.metadata) : '-'}
+                  </td>
+                  <td className="p-4 text-sm text-slate-500 whitespace-nowrap">{entry.ipAddress || '-'}</td>
+                  <td className="p-4 text-sm text-slate-500 whitespace-nowrap">
+                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'Unknown'}
+                  </td>
+                </tr>
+              ))}
+
+              {!activityLogsLoading && activityLogs.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-10 text-center text-slate-400">
+                    <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No activity logs match these filters.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderMessages = () => <MessagesPanel />;
 
   const renderSettings = () => (
@@ -1180,6 +1534,10 @@ export default function AdminDashboard() {
         return renderServiceTypes();
       case 'providers':
         return renderProviders();
+      case 'login-history':
+        return renderLoginHistory();
+      case 'activity-logs':
+        return renderActivityLogs();
       case 'messages':
         return renderMessages();
       case 'settings':
