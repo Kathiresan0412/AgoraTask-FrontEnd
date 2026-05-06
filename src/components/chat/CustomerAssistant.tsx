@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, X, ChevronDown } from 'lucide-react';
+import { Send, X, ChevronDown, MessageCircle } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
@@ -50,6 +50,7 @@ function MessageText({ text }: { text: string }) {
 export default function CustomerAssistant({ allowGuest = false }: { allowGuest?: boolean }) {
   const params = useParams<{ country?: string }>();
   const { user } = useAuth();
+  const { getInbox } = useMessages();
   const { t } = useLanguage();
   const country = normalizeCountryCode(params.country);
   const servicesPath = `/${country}/services`;
@@ -68,6 +69,11 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
   ]);
   const [awaitingCategory, setAwaitingCategory] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const unreadCount = user
+    ? getInbox(user.email).reduce((total, conversation) => (
+      total + conversation.messages.filter(message => message.to === user.email && !message.read).length
+    ), 0)
+    : 0;
   const searchChip = `${SEARCH_ICON} ${t('assistant.searchByName')}`;
   const initialChips = useMemo(
     () => [...serviceTypes.map(getServiceTypeChip), searchChip],
@@ -267,14 +273,15 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
     <>
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#171717] dark:bg-white text-white dark:text-[#171717] rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#171717] text-white shadow-2xl transition-transform hover:scale-110 active:scale-95 dark:bg-white dark:text-[#171717]"
+        aria-label={open ? 'Close assistant messages' : 'Open assistant messages'}
       >
-        {open ? <X className="w-6 h-6" /> : 
-          // <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm shadow-slate-200/70 ring-1 ring-black/5 dark:border-neutral-800 dark:shadow-none dark:ring-white/10">
-                        <Image src="/agoratask-icon.svg" alt="AgoraTask" width={28} height={28} className="block h-full w-full object-contain" priority />
-                      // </div>
-        // <Zap className="w-6 h-6" />
-        }
+        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-7 w-7" />}
+        {!open && (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[10px] font-extrabold leading-none text-white shadow-sm dark:border-neutral-950">
+            {unreadCount > 0 ? Math.min(unreadCount, 9) : ''}
+          </span>
+        )}
       </button>
 
       {open && (
