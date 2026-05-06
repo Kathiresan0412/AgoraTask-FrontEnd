@@ -4,6 +4,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { MessagesProvider } from "@/contexts/MessagesContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { InitialAgoraLoader } from "@/components/layout/InitialAgoraLoader";
 
 export const metadata: Metadata = {
   title: "AgoraTask | Service Marketplace",
@@ -30,6 +31,7 @@ export default function RootLayout({
           <LanguageProvider>
             <AuthProvider>
               <MessagesProvider>
+                <InitialAgoraLoader />
                 {children}
               </MessagesProvider>
             </AuthProvider>
