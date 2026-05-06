@@ -1,42 +1,127 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Zap, ChevronDown } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, X, ChevronDown } from 'lucide-react';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { publicServiceApi, serviceTypeApi } from '@/lib/api';
+import type { PublicServiceDto, ServiceTypeDto } from '@/lib/api';
+import { formatServicePrice, normalizeCountryCode } from '@/lib/countries';
 import Image from 'next/image';
-
-// Service categories for the assistant
-const CATEGORIES = [
-  { label: 'Cleaning',          emoji: '🧹' },
-  { label: 'Plumbing',          emoji: '🔧' },
-  { label: 'Electrical',        emoji: '⚡' },
-  { label: 'AC Maintenance',    emoji: '❄️' },
-  { label: 'Painting',          emoji: '🎨' },
-  { label: 'Transport & Moving',emoji: '🚛' },
-  { label: 'Food & Catering',   emoji: '🍽️' },
-  { label: 'Search by name',    emoji: '🔍' },
-];
 
 interface BotMsg { role: 'bot' | 'user'; text: string; chips?: string[] }
 
+const SEARCH_ICON = '🔍';
+const LINK_PATTERN = /(\/(?:lk|ca)\/services(?:\?category=[^\s]+)?)/g;
+const LINK_SEGMENT_PATTERN = /^\/(?:lk|ca)\/services(?:\?category=[^\s]+)?$/;
+const isImageIcon = (value?: string | null) =>
+  Boolean(value && (/^https?:\/\//.test(value) || value.startsWith('/') || value.startsWith('data:image/')));
+const getServiceTypeChip = (type: ServiceTypeDto) =>
+  `${type.icon && !isImageIcon(type.icon) ? type.icon : '•'} ${type.name}`;
+const getCategoryServicesPath = (country: string, category?: string) =>
+  category ? `/${country}/services?category=${encodeURIComponent(category)}` : `/${country}/services`;
+
+function MessageText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split('**').map((part, pi) => {
+        const content = part.split(LINK_PATTERN).map((segment, si) =>
+          LINK_SEGMENT_PATTERN.test(segment) ? (
+            <a
+              key={si}
+              href={segment}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold underline underline-offset-2 hover:opacity-80"
+            >
+              click here
+            </a>
+          ) : segment
+        );
+
+        return pi % 2 === 1 ? <strong key={pi}>{content}</strong> : <React.Fragment key={pi}>{content}</React.Fragment>;
+      })}
+    </>
+  );
+}
+
 export default function CustomerAssistant({ allowGuest = false }: { allowGuest?: boolean }) {
+  const params = useParams<{ country?: string }>();
   const { user } = useAuth();
   const { t } = useLanguage();
+  const country = normalizeCountryCode(params.country);
+  const servicesPath = `/${country}/services`;
 
   const [open, setOpen] = useState(false);
   const [tab, setTab]   = useState<'assistant' | 'inbox'>('assistant');
   const [input, setInput] = useState('');
+  const [serviceTypes, setServiceTypes] = useState<ServiceTypeDto[]>([]);
+  const [loadingServiceTypes, setLoadingServiceTypes] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [chat, setChat] = useState<BotMsg[]>(() => [
     {
       role: 'bot',
       text: t('assistant.greeting'),
-      chips: CATEGORIES.map(c => `${c.emoji} ${c.label === 'Search by name' ? t('assistant.searchByName') : c.label}`),
     },
   ]);
   const [awaitingCategory, setAwaitingCategory] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const searchChip = `${SEARCH_ICON} ${t('assistant.searchByName')}`;
+  const initialChips = useMemo(
+    () => [...serviceTypes.map(getServiceTypeChip), searchChip],
+    [searchChip, serviceTypes]
+  );
+
+  const describeServices = (services: PublicServiceDto[], intro: string, category?: string) => {
+    const browsePath = getCategoryServicesPath(country, category);
+
+    if (!services.length) {
+      return `${intro}\n\nThere are no active provider services available in the database right now. You can browse Services here: ${browsePath}`;
+    }
+
+    const serviceLines = services.slice(0, 3).map((service, index) => {
+      const price = formatServicePrice(service.basePrice, service.priceType, country);
+      const location = service.location ? ` · ${service.location}` : '';
+      return `${index + 1}. ${service.title} by ${service.provider.name} · ${price}${location}`;
+    });
+
+    return `${intro}\n\n${serviceLines.join('\n')}\n\nOpen Services to view profiles, reviews, availability, and booking details: ${browsePath}`;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadServiceTypes = async () => {
+      setLoadingServiceTypes(true);
+      try {
+        const { data } = await serviceTypeApi.list();
+        if (!cancelled) setServiceTypes(data.filter(type => type.active).slice(0, 8));
+      } catch {
+        if (!cancelled) setServiceTypes([]);
+      } finally {
+        if (!cancelled) setLoadingServiceTypes(false);
+      }
+    };
+
+    loadServiceTypes();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setChat(prev => {
+      if (prev.length !== 1 || prev[0].role !== 'bot') return prev;
+
+      return [{
+        ...prev[0],
+        text: t('assistant.greeting'),
+        chips: loadingServiceTypes ? undefined : initialChips,
+      }];
+    });
+  }, [initialChips, loadingServiceTypes, t]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -50,56 +135,132 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
   const addMsg = (role: BotMsg['role'], text: string, chips?: string[]) =>
     setChat(prev => [...prev, { role, text, chips }]);
 
-  const handleChip = (chip: string) => {
-    const label = chip.replace(/^.{1,2}\s/, '');
+  const handleChip = async (chip: string) => {
+    const matchedType = serviceTypes.find(type => chip === getServiceTypeChip(type));
+    const label = matchedType?.name || chip.replace(`${SEARCH_ICON} `, '').replace(/^•\s/, '');
     addMsg('user', chip);
     setAwaitingCategory(false);
+    setSelectedCategory(matchedType?.name || '');
 
-    setTimeout(() => {
-      if (label === 'Search by name') {
-        addMsg('bot', "Sure! Type the service or provider name you're looking for and I'll help you find them.");
-      } else {
+    if (chip === searchChip) {
+      addMsg('bot', "Sure! Type the service or provider name you're looking for and I'll search the live service records.");
+      return;
+    }
+
+    addMsg('bot', `Searching active ${label} services from the database...`);
+
+    try {
+      const { data } = await publicServiceApi.list({ country, category: label, page: 1, limit: 3 });
+      const services = data.data;
+
+      if (!services.length) {
+        const { data: fallbackData } = await publicServiceApi.list({ country, page: 1, limit: 3 });
         addMsg('bot',
-          `Great choice! I'll connect you with top-rated **${label}** providers in your area.\n\nWould you like to:\n• ${t('assistant.bookNow')}\n• ${t('assistant.seeProviders')}\n• ${t('assistant.messageProvider')}`,
-          [`📅 ${t('assistant.bookNow')}`, `⭐ ${t('assistant.seeProviders')}`, `💬 ${t('assistant.messageProvider')}`]
+          fallbackData.data.length
+            ? describeServices(fallbackData.data, `I could not find active ${label} providers yet, but these active services are available in the database.`)
+            : describeServices([], `I could not find active ${label} providers yet.`, label),
+          fallbackData.data.length ? [`⭐ ${t('assistant.seeProviders')}`, '🔙 Start over'] : ['🔙 Start over']
         );
+        return;
       }
-    }, 600);
+
+      const intro = data.pagination.total === 1
+        ? `I found 1 active ${label} service in the database.`
+        : `I found ${data.pagination.total} active ${label} services in the database.`;
+      addMsg('bot',
+        describeServices(services, intro, label),
+        [`📅 ${t('assistant.bookNow')}`, `⭐ ${t('assistant.seeProviders')}`, `💬 ${t('assistant.messageProvider')}`]
+      );
+    } catch {
+      addMsg('bot', `I could not load ${label} providers from the database right now. Please try again or open Services: ${servicesPath}`);
+    }
   };
 
   const handleActionChip = (chip: string) => {
     addMsg('user', chip);
+
     setTimeout(async () => {
-      if (chip.includes('Message a provider')) {
+      if (chip.includes(t('assistant.messageProvider'))) {
         addMsg('bot', "Open a provider profile from the Services page and send your message there.");
-      } else if (chip.includes('Book now')) {
-        addMsg('bot', "🗓️ Please visit the Services page to pick an available slot. I'll remind you 24 hours before your booking!");
+      } else if (chip.includes(t('assistant.bookNow'))) {
+        addMsg('bot', `Please open Services, choose an available provider, and book from the service profile: ${servicesPath}`);
+      } else if (chip.includes('Start over')) {
+        setAwaitingCategory(true);
+        setSelectedCategory('');
+        addMsg('bot', t('assistant.greeting'), initialChips);
       } else {
-        addMsg('bot', "Here are the top-rated providers in your area. Open Services to compare profiles, admin-approved reviews, prices, and availability.");
+        try {
+          const { data } = await publicServiceApi.list({
+            country,
+            category: selectedCategory || undefined,
+            page: 1,
+            limit: 3,
+          });
+          addMsg('bot', describeServices(data.data, `Here are live provider services from the database${selectedCategory ? ` for ${selectedCategory}` : ''}.`, selectedCategory || undefined));
+        } catch {
+          addMsg('bot', `I could not load providers from the database right now. Please open Services and try again: ${servicesPath}`);
+        }
       }
     }, 600);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
     setInput('');
     addMsg('user', text);
     setAwaitingCategory(false);
+    addMsg('bot', `Searching the database for "${text}"...`);
 
-    setTimeout(() => {
-      // Simple keyword matching
+    try {
       const lower = text.toLowerCase();
-      if (lower.includes('plumb') || lower.includes('pipe') || lower.includes('leak') || lower.includes('clean')) {
-        addMsg('bot', "Open the Services page to search live provider records from the API. Logged-in customers can leave reviews after admin checks them.",
-          ['📅 Book now', '⭐ See providers']);
-      } else if (lower.includes('hello') || lower.includes('hi')) {
-        addMsg('bot', "Hello! 😊 What service can I help you find today?", CATEGORIES.map(c => `${c.emoji} ${c.label}`));
-      } else {
-        addMsg('bot', `Let me search for "${text}" providers…\n\nI found 3 providers matching your request. Would you like to connect with one of them?`,
-          ['📅 Book now', '💬 Message a provider', '🔙 Start over']);
+      if (['hello', 'hi', 'hey'].includes(lower)) {
+        setAwaitingCategory(true);
+        addMsg('bot', "Hello! What service can I help you find today?", initialChips);
+        return;
       }
-    }, 700);
+
+      const matchedType = serviceTypes.find(type =>
+        type.name.toLowerCase().includes(lower) || lower.includes(type.name.toLowerCase())
+      );
+      const { data } = await publicServiceApi.list({
+        country,
+        category: matchedType?.name,
+        page: 1,
+        limit: matchedType ? 3 : 50,
+      });
+
+      const matches = matchedType
+        ? data.data
+        : data.data.filter(service => {
+          const searchable = [
+            service.title,
+            service.description,
+            service.provider.name,
+            service.location,
+            ...service.categories,
+            ...service.serviceTypes.map(type => type.name),
+          ].filter(Boolean).join(' ').toLowerCase();
+
+          return searchable.includes(lower);
+        }).slice(0, 3);
+
+      if (matches.length) {
+        addMsg('bot',
+          describeServices(matches, `I found ${matches.length} matching service${matches.length === 1 ? '' : 's'} in the database.`, matchedType?.name),
+          [`📅 ${t('assistant.bookNow')}`, `💬 ${t('assistant.messageProvider')}`, '🔙 Start over']
+        );
+      } else if (data.data.length) {
+        addMsg('bot',
+          describeServices(data.data.slice(0, 3), `I could not find an exact database match for "${text}", but these active services are available.`),
+          [`⭐ ${t('assistant.seeProviders')}`, '🔙 Start over']
+        );
+      } else {
+        addMsg('bot', `I could not find active services matching "${text}" in the database. Try another service name or browse all services: ${servicesPath}`, ['🔙 Start over']);
+      }
+    } catch {
+      addMsg('bot', `I could not search services from the database right now. Please try again or open Services: ${servicesPath}`);
+    }
   };
 
   return (
@@ -173,9 +334,7 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
                           ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 rounded-tl-sm'
                           : 'bg-[#171717] dark:bg-white text-white dark:text-[#171717] rounded-tr-sm'
                       }`}>
-                        {msg.text.split('**').map((part, pi) =>
-                          pi % 2 === 1 ? <strong key={pi}>{part}</strong> : part
-                        )}
+                        <MessageText text={msg.text} />
                       </div>
                       {msg.chips && (
                         <div className="flex flex-wrap gap-2 mt-2">
