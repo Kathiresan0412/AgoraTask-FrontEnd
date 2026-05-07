@@ -39,6 +39,7 @@ api.interceptors.response.use(
 export interface LoginPayload {
   email: string;
   password: string;
+  role?: 'customer' | 'provider' | 'admin';
 }
 
 export interface RegisterPayload {

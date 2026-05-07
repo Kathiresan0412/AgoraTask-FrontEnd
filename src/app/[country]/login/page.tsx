@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, User, Briefcase, Shield } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,7 +11,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { GoogleLoginButton } from '@/components/auth/GoogleLoginButton';
 import { Navbar } from '@/components/layout/Navbar';
-import Image from 'next/image';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -20,6 +19,19 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+type LoginRole = 'customer' | 'provider' | 'admin';
+
+const duplicateAccountMessage = 'Multiple accounts match this email. Please choose a role to continue.';
+
+const loginRoles: Array<{
+  value: LoginRole;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { value: 'customer', label: 'Customer', Icon: User },
+  { value: 'provider', label: 'Provider', Icon: Briefcase }
+  // { value: 'admin', label: 'Admin', Icon: Shield },
+];
 
 const getAuthErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error !== null && 'response' in error) {
@@ -39,6 +51,8 @@ export default function LoginPage() {
 
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showRoleChooser, setShowRoleChooser] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<LoginRole>('customer');
   const { login, isLoading } = useAuth();
   const { t } = useLanguage();
 
@@ -74,10 +88,22 @@ export default function LoginPage() {
     setLoginError('');
 
     try {
-      await login({ email: data.email, password: data.password });
+      await login({
+        email: data.email,
+        password: data.password,
+        ...(showRoleChooser ? { role: selectedRole } : {}),
+      });
       redirectAfterAuth();
     } catch (error) {
-      setLoginError(getAuthErrorMessage(error, 'Invalid email or password.'));
+      const message = getAuthErrorMessage(error, 'Invalid email or password.');
+
+      if (message === duplicateAccountMessage) {
+        setShowRoleChooser(true);
+        setLoginError('Choose which account role you want to sign in with.');
+        return;
+      }
+
+      setLoginError(message);
     }
   };
 
@@ -175,6 +201,37 @@ export default function LoginPage() {
             {loginError && (
               <div className="rounded-xl bg-red-50 dark:bg-red-900/30 px-4 py-3">
                 <p className="text-sm font-medium text-red-800 dark:text-red-400">{loginError}</p>
+              </div>
+            )}
+
+            {showRoleChooser && (
+              <div>
+                <span className="block text-sm font-medium text-[#171717] dark:text-neutral-300">
+                  {/* Account role */}
+                  {t('login.chooseRole')}
+                </span>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {loginRoles.map(({ value, label, Icon }) => {
+                    const isSelected = selectedRole === value;
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSelectedRole(value)}
+                        className={`flex h-20 flex-col items-center justify-center gap-2 rounded-2xl border text-xs font-semibold transition-all ${
+                          isSelected
+                            ? 'border-[#171717] bg-[#171717] text-white shadow-sm dark:border-white dark:bg-white dark:text-[#171717]'
+                            : 'border-neutral-200 bg-[#F9FAFB] text-neutral-600 hover:border-neutral-300 hover:text-[#171717] dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:text-white'
+                        }`}
+                        aria-pressed={isSelected}
+                      >
+                        <Icon className="h-5 w-5" />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
