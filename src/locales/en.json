@@ -103,7 +103,8 @@
     "googleError": "Google sign-in failed. Please try again.",
     "googleNotConfigured": "Google sign-in is not configured",
     "orContinueWith": "Or continue with",
-    "invalidCredentials": "Invalid email or password."
+    "invalidCredentials": "Invalid email or password.",
+    "chooseRole": "Choose your account role"
   },
   "register": {
     "title": "Create your account",

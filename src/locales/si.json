@@ -102,7 +102,8 @@
     "googleError": "Google පිවිසුම අසාර්ථක විය. නැවත උත්සාහ කරන්න.",
     "googleNotConfigured": "Google පිවිසුම සකසා නැත",
     "orContinueWith": "නැතහොත් මෙයින් ඉදිරියට යන්න",
-    "invalidCredentials": "වැරදි ඊමේල් හෝ මුරපදය."
+    "invalidCredentials": "වැරදි ඊමේල් හෝ මුරපදය.",
+    "chooseRole": "ඔබගේ ගිණුම් භූමිකාව තෝරන්න"
   },
   "register": {
     "title": "ඔබගේ ගිණුම සාදන්න",
