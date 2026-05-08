@@ -7,7 +7,8 @@ import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { bookingApi, publicServiceApi, reviewApi } from '@/lib/api';
 import type { PublicServiceDto, ReviewDto } from '@/lib/api';
-import { AlertCircle, CalendarDays, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle, ChevronDown, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatServicePrice } from '@/lib/countries';
@@ -22,8 +23,12 @@ type Review = {
   rating: number;
   comment: string;
   date: string;
+  timestamp: number;
+  status: ReviewDto['status'];
   isMine?: boolean;
 };
+
+type ReviewSort = 'relevant' | 'newest' | 'highest' | 'lowest';
 
 const formatReviewDate = (value: string) => {
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -37,6 +42,8 @@ const mapReview = (review: ReviewDto): Review => {
     rating: review.rating,
     comment: review.comment,
     date: formatReviewDate(review.updatedAt || review.createdAt),
+    timestamp: new Date(review.updatedAt || review.createdAt).getTime(),
+    status: review.status,
     isMine: review.isMine,
   };
 };
@@ -60,6 +67,8 @@ const getDefaultBookingTime = () => {
   date.setHours(9, 0, 0, 0);
   return toDateTimeLocalValue(date);
 };
+
+const REVIEWS_PER_PAGE = 5;
 
 function ServiceDetailSkeleton() {
   return (
@@ -120,6 +129,10 @@ export default function ServiceDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
+  const [myReview, setMyReview] = useState<Review | null>(null);
+  const [reviewRatingFilter, setReviewRatingFilter] = useState('all');
+  const [reviewSort, setReviewSort] = useState<ReviewSort>('relevant');
+  const [reviewPage, setReviewPage] = useState(1);
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -162,16 +175,89 @@ export default function ServiceDetailPage() {
     };
   }, [slug, t]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMyReview = async () => {
+      if (!service || user?.role !== 'customer') {
+        setMyReview(null);
+        return;
+      }
+
+      try {
+        const { data } = await reviewApi.getMine({ providerServiceId: service.id });
+        if (!cancelled) {
+          setMyReview(data ? mapReview(data) : null);
+        }
+      } catch (err: unknown) {
+        const status = typeof err === 'object' && err && 'response' in err
+          ? (err as { response?: { status?: number } }).response?.status
+          : undefined;
+        if (!cancelled && status === 404) {
+          setMyReview(null);
+        }
+      }
+    };
+
+    loadMyReview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [service, user?.id, user?.role]);
+
   const averageRating = useMemo(() => {
     if (!reviews.length) return '0.0';
     return (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1);
   }, [reviews]);
 
+  const filteredReviews = useMemo(() => {
+    const nextReviews = reviewRatingFilter === 'all'
+      ? [...reviews]
+      : reviews.filter(review => review.rating === Number(reviewRatingFilter));
+
+    return nextReviews.sort((a, b) => {
+      if (reviewSort === 'highest') return b.rating - a.rating || b.timestamp - a.timestamp;
+      if (reviewSort === 'lowest') return a.rating - b.rating || b.timestamp - a.timestamp;
+      if (reviewSort === 'newest') return b.timestamp - a.timestamp;
+      return b.rating - a.rating || b.timestamp - a.timestamp;
+    });
+  }, [reviewRatingFilter, reviewSort, reviews]);
+
+  const totalReviewPages = Math.max(1, Math.ceil(filteredReviews.length / REVIEWS_PER_PAGE));
+  const paginatedReviews = filteredReviews.slice((reviewPage - 1) * REVIEWS_PER_PAGE, reviewPage * REVIEWS_PER_PAGE);
+
+  useEffect(() => {
+    setReviewPage(1);
+  }, [reviewRatingFilter, reviewSort]);
+
+  useEffect(() => {
+    setReviewPage(page => Math.min(page, totalReviewPages));
+  }, [totalReviewPages]);
+
   const canManageReview = (review: Review) => Boolean(
     review.isMine || (user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name)))
   );
 
-  const userReview = reviews.find(canManageReview);
+  const userReview = myReview ?? reviews.find(canManageReview);
+
+  const reviewPanelTitle = editingReviewId
+    ? t('serviceDetail.editReview')
+    : userReview
+      ? 'Your Review'
+      : t('serviceDetail.leaveReview');
+
+  const reviewPanelMessage = !user
+    ? t('serviceDetail.reviewPanel.loginService')
+    : user.role !== 'customer'
+      ? t('serviceDetail.reviewPanel.customerOnlyService')
+      : userReview?.status === 'pending'
+        ? t('serviceDetail.reviewPanel.pending')
+        : userReview?.status === 'hidden'
+          ? t('serviceDetail.reviewPanel.hidden')
+          : userReview
+            ? t('serviceDetail.reviewPanel.alreadyReviewedService')
+            : t('serviceDetail.reviewPanel.shareService');
 
   const formatDuration = (minutes: number | null) => {
     if (!minutes) return t('serviceDetail.flexible');
@@ -207,6 +293,9 @@ export default function ServiceDetailPage() {
     try {
       await reviewApi.delete(reviewId);
       setReviews(reviews.filter(review => review.id !== reviewId));
+      if (myReview?.id === reviewId) {
+        setMyReview(null);
+      }
       resetReviewForm();
       setReviewNotice(t('serviceDetail.reviewDeleted'));
     } catch {
@@ -240,10 +329,13 @@ export default function ServiceDetailPage() {
           rating: reviewRating,
           comment: reviewComment.trim(),
         });
+        const nextReview = mapReview(data);
         resetReviewForm();
+        setMyReview(nextReview);
         if (data.status === 'visible') {
-          const nextReview = mapReview(data);
-          setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
+          setReviews(reviews.some(review => review.id === reviewIdToUpdate)
+            ? reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review)
+            : [nextReview, ...reviews]);
           setReviewNotice(t('serviceDetail.reviewUpdated'));
         } else {
           setReviews(reviews.filter(review => review.id !== reviewIdToUpdate));
@@ -256,9 +348,11 @@ export default function ServiceDetailPage() {
         rating: reviewRating,
         comment: reviewComment.trim(),
       });
+      const nextReview = mapReview(data);
       resetReviewForm();
+      setMyReview(nextReview);
       if (data.status === 'visible') {
-        setReviews([mapReview(data), ...reviews]);
+        setReviews([nextReview, ...reviews]);
       }
       setReviewNotice('Review sent for admin approval. It will appear after moderation.');
     } catch (err: unknown) {
@@ -302,7 +396,7 @@ export default function ServiceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <main className="container mx-auto max-w-6xl px-4 py-10 md:py-14">
           <ServiceDetailSkeleton />
@@ -314,14 +408,14 @@ export default function ServiceDetailPage() {
 
   if (!service) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <main className="container mx-auto max-w-5xl px-4 py-20">
-          <div className="rounded-3xl border border-red-200 bg-white p-10 text-center dark:border-red-900 dark:bg-slate-900">
+          <div className="rounded-2xl border border-red-200 bg-white p-10 text-center shadow-sm shadow-slate-200/60 dark:border-red-900 dark:bg-slate-900 dark:shadow-none">
             <AlertCircle className="mx-auto mb-4 h-10 w-10 text-red-500" />
             <p className="text-lg font-bold">{t('serviceDetail.notFound')}</p>
             <p className="mt-2 text-sm text-slate-500">{error || t('serviceDetail.noServiceMatched')}</p>
-            <Link href={`/${country}/services`} className="mt-6 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700">
+            <Link href={`/${country}/services`} className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
               {t('serviceDetail.browseServices')}
             </Link>
           </div>
@@ -332,15 +426,15 @@ export default function ServiceDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <Navbar />
 
-      <main className="container mx-auto max-w-6xl px-4 py-10 md:py-14">
+      <main className="container mx-auto max-w-6xl px-4 py-6 sm:py-8 md:py-10">
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="h-72 bg-slate-200 md:h-96">
+          <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+            <div className="h-64 bg-slate-200 sm:h-80 md:h-96">
               {service.images[0] ? (
-                <img src={service.images[0]} alt={service.title} className="h-full w-full object-cover" />
+                <Image src={service.images[0]} alt={service.title} width={900} height={520} className="h-full w-full object-cover" unoptimized priority />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-800">
                   <ImageIcon className="h-12 w-12" />
@@ -350,7 +444,7 @@ export default function ServiceDetailPage() {
             <div className="p-6 md:p-8">
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 {service.categories.map(category => (
-                  <span key={category} className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  <span key={category} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
                     {category}
                   </span>
                 ))}
@@ -359,33 +453,33 @@ export default function ServiceDetailPage() {
                 </span>
               </div>
 
-              <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl">{service.title}</h1>
+              <h1 className="text-3xl font-black tracking-normal md:text-5xl">{service.title}</h1>
               <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">{service.description || t('serviceDetail.noDescription')}</p>
 
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.price')}</p>
-                  <p className="mt-2 text-lg font-black text-indigo-600 dark:text-indigo-400">{formatServicePrice(service.basePrice, service.priceType, countryCode)}</p>
+                  <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">{formatServicePrice(service.basePrice, service.priceType, countryCode)}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.duration')}</p>
-                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><Clock className="h-4 w-4 text-indigo-500" /> {formatDuration(service.durationMins)}</p>
+                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><Clock className="h-4 w-4 text-slate-500" /> {formatDuration(service.durationMins)}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.location')}</p>
-                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><MapPin className="h-4 w-4 text-indigo-500" /> {service.location || t('serviceDetail.flexible')}</p>
+                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><MapPin className="h-4 w-4 text-slate-500" /> {service.location || t('serviceDetail.flexible')}</p>
                 </div>
               </div>
             </div>
           </section>
 
           <aside className="space-y-6">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+            <div className="sticky top-24 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
               <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.provider')}</p>
-              <Link href={`/${country}/providers/${service.provider.slug}`} className="mt-3 flex items-center gap-4 rounded-2xl border border-slate-200 p-4 transition-colors hover:border-indigo-200 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-900 dark:hover:bg-indigo-950/30">
+              <Link href={`/${country}/providers/${service.provider.slug}`} className="mt-3 flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700 dark:hover:bg-slate-900">
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   {service.provider.profileImage ? (
-                    <img src={service.provider.profileImage} alt={service.provider.name} className="h-full w-full object-cover" />
+                    <Image src={service.provider.profileImage} alt={service.provider.name} width={56} height={56} className="h-full w-full object-cover" unoptimized />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-400">
                       <UserRound className="h-6 w-6" />
@@ -394,7 +488,7 @@ export default function ServiceDetailPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="font-black text-slate-900 dark:text-white">{service.provider.name}</p>
-                  <p className="mt-1 text-sm font-semibold text-indigo-600 dark:text-indigo-400">{t('serviceDetail.viewProviderProfile')}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{t('serviceDetail.viewProviderProfile')}</p>
                 </div>
               </Link>
 
@@ -406,19 +500,19 @@ export default function ServiceDetailPage() {
               <label className="mt-5 block">
                 <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
                   <CalendarDays className="h-4 w-4" />
-                  Preferred time
+                  {t('serviceDetail.preferredTime')}
                 </span>
                 <input
                   type="datetime-local"
                   value={bookingTime}
                   min={toDateTimeLocalValue(new Date())}
                   onChange={event => setBookingTime(event.target.value)}
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-950 dark:focus:border-slate-600 dark:focus:ring-slate-800/70"
                 />
               </label>
 
-              <button type="button" onClick={handleBookService} disabled={isBooking} className="mt-4 block w-full rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {isBooking ? 'Sending request...' : t('serviceDetail.bookThisService')}
+              <button type="button" onClick={handleBookService} disabled={isBooking} className="mt-4 block w-full rounded-xl bg-slate-950 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-slate-300/60 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:shadow-none dark:hover:bg-slate-200">
+                {isBooking ? t('serviceDetail.sendingRequest') : t('serviceDetail.bookThisService')}
               </button>
 
               {bookingNotice && (
@@ -428,7 +522,7 @@ export default function ServiceDetailPage() {
           </aside>
         </div>
 
-        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 md:p-8">
+        <section className="mt-8 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none md:p-8">
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h2 className="text-2xl font-bold">{t('serviceDetail.serviceReviews')}</h2>
@@ -442,8 +536,45 @@ export default function ServiceDetailPage() {
 
           <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
             <div className="space-y-4">
-                {reviews.map(review => (
-                <div key={review.id} className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
+              {reviews.length > 0 && (
+                <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-3">
+                    <label className="relative">
+                      <span className="sr-only">Sort reviews</span>
+                      <select
+                        value={reviewSort}
+                        onChange={event => setReviewSort(event.target.value as ReviewSort)}
+                        className="h-11 appearance-none rounded-xl border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition hover:border-slate-300 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:focus:ring-slate-800/70"
+                      >
+                        <option value="relevant">Most relevant</option>
+                        <option value="newest">Newest first</option>
+                        <option value="highest">Highest rating</option>
+                        <option value="lowest">Lowest rating</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                    </label>
+                    <label className="relative">
+                      <span className="sr-only">Filter reviews by star rating</span>
+                      <select
+                        value={reviewRatingFilter}
+                        onChange={event => setReviewRatingFilter(event.target.value)}
+                        className="h-11 appearance-none rounded-xl border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition hover:border-slate-300 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:focus:ring-slate-800/70"
+                      >
+                        <option value="all">All ratings</option>
+                        {[5, 4, 3, 2, 1].map(rating => (
+                          <option key={rating} value={rating}>{rating}-star</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                    </label>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    {filteredReviews.length} shown
+                  </p>
+                </div>
+              )}
+              {paginatedReviews.map(review => (
+                <div key={review.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/60">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
                       <p className="font-bold">{review.customer}</p>
@@ -456,10 +587,10 @@ export default function ServiceDetailPage() {
                       </div>
                       {canManageReview(review) && (
                         <div className="flex gap-2 text-xs font-bold">
-                          <button type="button" onClick={() => handleEditReview(review)} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+                          <button type="button" onClick={() => handleEditReview(review)} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 cursor-pointer">
                             {t('common.edit')}
                           </button>
-                          <button type="button" onClick={() => handleDeleteReview(review.id)} className="text-red-600 hover:text-red-700 dark:text-red-400">
+                          <button type="button" onClick={() => handleDeleteReview(review.id)} className="text-red-600 hover:text-red-700 dark:text-red-400 cursor-pointer">
                             {t('common.delete')}
                           </button>
                         </div>
@@ -469,19 +600,55 @@ export default function ServiceDetailPage() {
                   <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{review.comment}</p>
                 </div>
               ))}
+              {reviews.length > 0 && filteredReviews.length === 0 && (
+                <div className="rounded-2xl border border-slate-200 p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  No reviews match this filter.
+                </div>
+              )}
+              {filteredReviews.length > REVIEWS_PER_PAGE && (
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    Page {reviewPage} of {totalReviewPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReviewPage(page => Math.max(1, page - 1))}
+                      disabled={reviewPage === 1}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewPage(page => Math.min(totalReviewPages, page + 1))}
+                      disabled={reviewPage === totalReviewPages}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
+            {(!userReview || isReviewFormOpen) && (
             <div className="h-fit rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/50">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-bold">{editingReviewId ? t('serviceDetail.editReview') : t('serviceDetail.leaveReview')}</h3>
+                <h3 className="text-lg font-bold">{reviewPanelTitle}</h3>
                 {!isReviewFormOpen && !userReview && (
                   <button type="button" onClick={handleAddReview} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
                     {t('serviceDetail.addReview')}
                   </button>
                 )}
+                {!isReviewFormOpen && userReview && (
+                  <button type="button" onClick={() => handleEditReview(userReview)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
+                    {t('common.edit')}
+                  </button>
+                )}
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                Login as a customer to review. Every new review is checked by admin before it becomes public.
+                {reviewPanelMessage}
               </p>
               {isReviewFormOpen && (
                 <>
@@ -512,6 +679,7 @@ export default function ServiceDetailPage() {
               )}
               {reviewNotice && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{reviewNotice}</p>}
             </div>
+            )}
           </div>
         </section>
       </main>

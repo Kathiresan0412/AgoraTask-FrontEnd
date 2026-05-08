@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, Users, Layers, Settings, ShieldAlert,
   LogOut, Plus, Trash2, Edit2, Check, X, Zap,
   ChevronRight, ChevronDown, Tag, Grid3X3, MessageSquare, Briefcase,
-  ClipboardList, Search, RefreshCw, Star, History, Activity
+  ClipboardList, Search, RefreshCw, Star, History, Activity, ImagePlus
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
@@ -17,6 +17,9 @@ import { adminApi, serviceTypeApi } from '@/lib/api';
 import type { AdminActivityLogDto, AdminLoginHistoryDto, AdminProviderDto, AdminReviewDto, AdminServiceDto, ServiceTypeDto } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image'; 
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import toast from 'react-hot-toast';
+import { IMAGE_UPLOAD_TERMS, readImageFileAsDataUrl } from '@/lib/image-upload';
 
 // ── Types ────────────────────────────────────────────────────────
 interface ServiceType {
@@ -25,6 +28,7 @@ interface ServiceType {
   name: string;
   description: string;
   icon: string;
+  imageUrl: string;
   color: string;
   active: boolean;
 }
@@ -32,6 +36,7 @@ interface ServiceType {
 // ── Sidebar nav items ─────────────────────────────────────────────
 type Section = 'dashboard' | 'services' | 'reviews' | 'service-types' | 'providers' | 'login-history' | 'activity-logs' | 'messages' | 'settings';
 const SECTIONS: Section[] = ['dashboard', 'services', 'reviews', 'service-types', 'providers', 'login-history', 'activity-logs', 'messages', 'settings'];
+type AdminRejectTarget = { type: 'provider' | 'service'; id: string; name: string } | null;
 
 const NAV = [
   { id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard },
@@ -181,6 +186,7 @@ function mapServiceType(row: ServiceTypeDto): ServiceType {
     name: row.name,
     description: row.description || '',
     icon: row.icon || '🔧',
+    imageUrl: row.image_url || row.imageUrl || '',
     color: row.color || '#6366F1',
     active: row.active,
   };
@@ -246,6 +252,7 @@ export default function AdminDashboard() {
   const [activityFromFilter, setActivityFromFilter] = useState('');
   const [activityToFilter, setActivityToFilter] = useState('');
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
+  const [adminRejectTarget, setAdminRejectTarget] = useState<AdminRejectTarget>(null);
 
   // Create-form state
   const [showForm, setShowForm] = useState(false);
@@ -253,9 +260,11 @@ export default function AdminDashboard() {
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formIcon, setFormIcon] = useState('🔧');
+  const [formImageUrl, setFormImageUrl] = useState('');
   const [formColor, setFormColor] = useState('#6366F1');
   const [formParentId, setFormParentId] = useState('');
   const [formError, setFormError] = useState('');
+  const serviceTypeImageInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = () => { logout(); router.push(`/${country}/login`); };
   const selectSection = (nextSection: Section) => {
@@ -419,13 +428,13 @@ export default function AdminDashboard() {
   // ── Service type helpers ────────────────────────────────────────
   const openCreate = () => {
     setEditId(null); setFormName(''); setFormDesc('');
-    setFormIcon('🔧'); setFormColor('#6366F1'); setFormParentId(''); setFormError('');
+    setFormIcon('🔧'); setFormImageUrl(''); setFormColor('#6366F1'); setFormParentId(''); setFormError('');
     setShowForm(true);
   };
 
   const openEdit = (st: ServiceType) => {
     setEditId(st.id); setFormName(st.name); setFormDesc(st.description);
-    setFormIcon(st.icon); setFormColor(st.color); setFormParentId(st.parentId || ''); setFormError('');
+    setFormIcon(st.icon); setFormImageUrl(st.imageUrl); setFormColor(st.color); setFormParentId(st.parentId || ''); setFormError('');
     setShowForm(true);
   };
 
@@ -468,6 +477,20 @@ export default function AdminDashboard() {
     );
   };
 
+  const handleServiceTypeImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setFormError('');
+    try {
+      setFormImageUrl(await readImageFileAsDataUrl(file));
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : 'Could not read this service type image.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   const saveServiceType = async () => {
     if (!formName.trim()) { setFormError('Name is required.'); return; }
     setSavingServiceType(true);
@@ -479,6 +502,7 @@ export default function AdminDashboard() {
         name: formName.trim(),
         description: formDesc.trim(),
         icon: formIcon,
+        image_url: formImageUrl || null,
         color: formColor,
       };
 
@@ -550,9 +574,12 @@ export default function AdminDashboard() {
         await adminApi.rejectProvider(id);
       }
       await loadProviders();
+      setAdminRejectTarget(null);
+      toast.success(nextStatus === 'active' ? 'Provider approved.' : 'Provider rejected.');
     } catch {
       setProviders(previousProviders);
       setProvidersError(`Could not ${nextStatus === 'active' ? 'approve' : 'reject'} this provider.`);
+      toast.error(`Could not ${nextStatus === 'active' ? 'approve' : 'reject'} this provider.`);
     } finally {
       setUpdatingProviderId(null);
     }
@@ -573,9 +600,12 @@ export default function AdminDashboard() {
         await adminApi.rejectService(id);
       }
       await loadServices();
+      setAdminRejectTarget(null);
+      toast.success(nextStatus === 'active' ? 'Service approved.' : 'Service rejected.');
     } catch {
       setServices(previousServices);
       setServicesError(`Could not ${nextStatus === 'active' ? 'approve' : 'reject'} this service.`);
+      toast.error(`Could not ${nextStatus === 'active' ? 'approve' : 'reject'} this service.`);
     } finally {
       setUpdatingServiceId(null);
     }
@@ -638,7 +668,7 @@ export default function AdminDashboard() {
                 <td className="p-4 text-slate-600 dark:text-slate-300">{row.location}</td>
                 <td className="p-4 flex gap-2">
                   <button onClick={() => updateProviderStatus(row.id, 'active')} className="bg-green-50 dark:bg-green-900/30 hover:bg-green-100 text-green-600 dark:text-green-400 font-medium px-4 py-1.5 rounded-lg text-sm border border-green-200 dark:border-green-800 transition-colors">Approve</button>
-                  <button onClick={() => updateProviderStatus(row.id, 'rejected')} className="bg-red-50 dark:bg-red-900/30 hover:bg-red-100 text-red-600 dark:text-red-400 font-medium px-4 py-1.5 rounded-lg text-sm border border-red-200 dark:border-red-800 transition-colors">Reject</button>
+                  <button onClick={() => setAdminRejectTarget({ type: 'provider', id: row.id, name: row.businessName })} className="bg-red-50 dark:bg-red-900/30 hover:bg-red-100 text-red-600 dark:text-red-400 font-medium px-4 py-1.5 rounded-lg text-sm border border-red-200 dark:border-red-800 transition-colors">Reject</button>
                 </td>
               </tr>
             ))}
@@ -672,9 +702,13 @@ export default function AdminDashboard() {
               ) : (
                 <div className="mt-1 w-8 h-8 shrink-0" />
               )}
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-sm shrink-0"
+              <div className="w-11 h-11 overflow-hidden rounded-xl flex items-center justify-center text-xl shadow-sm shrink-0"
                 style={{ backgroundColor: st.color + '20', border: `1.5px solid ${st.color}40` }}>
-                {st.icon}
+                {st.imageUrl ? (
+                  <img src={st.imageUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  st.icon
+                )}
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -792,6 +826,44 @@ export default function AdminDashboard() {
                 placeholder="🔧"
                 className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                  {formImageUrl ? (
+                    <img src={formImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                      <ImagePlus className="h-7 w-7" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Service type image</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{IMAGE_UPLOAD_TERMS}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => serviceTypeImageInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                      {formImageUrl ? 'Change image' : 'Upload image'}
+                    </button>
+                    {formImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormImageUrl('')}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                      >
+                        <X className="h-4 w-4" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input ref={serviceTypeImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleServiceTypeImageChange} />
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">Accent Colour</label>
@@ -965,7 +1037,7 @@ export default function AdminDashboard() {
                           <Check className="w-3.5 h-3.5" /> Approve
                         </button>
                         <button
-                          onClick={() => updateServiceStatus(service.id, 'rejected')}
+                          onClick={() => setAdminRejectTarget({ type: 'service', id: service.id, name: service.title })}
                           disabled={updatingServiceId === service.id || service.status === 'rejected'}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                         >
@@ -1116,7 +1188,7 @@ export default function AdminDashboard() {
                         <Check className="w-3.5 h-3.5" /> Approve
                       </button>
                       <button
-                        onClick={() => updateProviderStatus(provider.id, 'rejected')}
+                        onClick={() => setAdminRejectTarget({ type: 'provider', id: provider.id, name: provider.businessName })}
                         disabled={updatingProviderId === provider.id || provider.status === 'rejected'}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                       >
@@ -1295,15 +1367,6 @@ export default function AdminDashboard() {
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </label>
-              <select
-                value={loginSuccessFilter}
-                onChange={event => setLoginSuccessFilter(event.target.value)}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="all">All attempts</option>
-                <option value="success">Successful</option>
-                <option value="failed">Failed</option>
-              </select>
               <input
                 type="date"
                 value={loginFromFilter}
@@ -1550,6 +1613,27 @@ export default function AdminDashboard() {
   // ── Layout ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex bg-slate-100 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <ConfirmationDialog
+        open={Boolean(adminRejectTarget)}
+        title={`Reject this ${adminRejectTarget?.type || 'item'}?`}
+        description={adminRejectTarget ? `${adminRejectTarget.name} will be marked as rejected and removed from the active approval flow.` : ''}
+        confirmLabel={adminRejectTarget?.type === 'service' ? 'Reject service' : 'Reject provider'}
+        cancelLabel="Keep pending"
+        loading={Boolean(
+          adminRejectTarget?.type === 'provider'
+            ? updatingProviderId === adminRejectTarget.id
+            : adminRejectTarget?.type === 'service' && updatingServiceId === adminRejectTarget.id
+        )}
+        onConfirm={() => {
+          if (!adminRejectTarget) return;
+          if (adminRejectTarget.type === 'provider') {
+            updateProviderStatus(adminRejectTarget.id, 'rejected');
+            return;
+          }
+          updateServiceStatus(adminRejectTarget.id, 'rejected');
+        }}
+        onCancel={() => setAdminRejectTarget(null)}
+      />
 
       {/* ── Sidebar ──────────────────────────────────────────────── */}
       <aside className="w-64 shrink-0 bg-slate-900 dark:bg-slate-950 flex flex-col border-r border-slate-800 min-h-screen">

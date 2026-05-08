@@ -262,6 +262,16 @@
   animation: home-review-marquee 42s linear infinite;
 }
 
+.home-review-track-static {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.home-review-set {
+  display: flex;
+}
+
 .home-review-marquee:hover .home-review-track {
   animation-play-state: paused;
 }

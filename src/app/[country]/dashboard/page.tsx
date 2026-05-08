@@ -12,6 +12,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { bookingApi, type BookingDto } from '@/lib/api';
 import { formatServicePrice } from '@/lib/countries';
 import { normalizeCountryCode } from '@/lib/locations';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import toast from 'react-hot-toast';
 
 const statusStyles: Record<BookingDto['status'], string> = {
   pending: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300',
@@ -45,6 +47,7 @@ export default function UserDashboard() {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<BookingDto | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -101,14 +104,20 @@ export default function UserDashboard() {
     return null;
   }
 
-  const cancelBooking = async (bookingId: string) => {
+  const cancelBooking = async () => {
+    if (!bookingToCancel) return;
+
+    const bookingId = bookingToCancel.id;
     setUpdatingBookingId(bookingId);
     setBookingError('');
     try {
       const { data } = await bookingApi.cancel(bookingId);
       setBookings(current => current.map(booking => booking.id === bookingId ? data : booking));
+      setBookingToCancel(null);
+      toast.success('Booking cancelled.');
     } catch {
       setBookingError('Could not cancel this booking.');
+      toast.error('Could not cancel this booking.');
     } finally {
       setUpdatingBookingId(null);
     }
@@ -117,6 +126,16 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 flex flex-col">
       <Navbar />
+      <ConfirmationDialog
+        open={Boolean(bookingToCancel)}
+        title="Cancel this booking?"
+        description={bookingToCancel ? `This will cancel your booking for ${bookingToCancel.serviceTitle}. The provider will no longer see it as an active request.` : ''}
+        confirmLabel="Cancel booking"
+        cancelLabel="Keep booking"
+        loading={Boolean(bookingToCancel && updatingBookingId === bookingToCancel.id)}
+        onConfirm={cancelBooking}
+        onCancel={() => setBookingToCancel(null)}
+      />
       
       <div className="flex-1 container mx-auto px-4 max-w-5xl py-12">
         <div className="flex justify-between items-center mb-8 gap-4">
@@ -210,7 +229,7 @@ export default function UserDashboard() {
                       {['pending', 'accepted'].includes(booking.status) && (
                         <button
                           type="button"
-                          onClick={() => cancelBooking(booking.id)}
+                          onClick={() => setBookingToCancel(booking)}
                           disabled={updatingBookingId === booking.id}
                           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
                         >

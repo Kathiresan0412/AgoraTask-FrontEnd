@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Briefcase, Calendar, MessageSquare, DollarSign,
-  Settings, Star, Zap,
-  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag, Edit3, Trash2, Eye, Search
+  Settings, Star,
+  LogOut, ChevronRight, ChevronDown, BarChart2, Plus, MapPin, Save, Crosshair, X, Menu, Check, Tag, Edit3, Trash2, Eye, Search, ImagePlus
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessages } from '@/contexts/MessagesContext';
@@ -20,16 +20,21 @@ import { findNearestLocation, getCitiesByDistrict, getCountryLocations, getDistr
 import { formatServicePrice } from '@/lib/countries';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
+import toast from 'react-hot-toast';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { IMAGE_UPLOAD_TERMS, readImageFileAsDataUrl } from '@/lib/image-upload';
 
 type Section = 'overview' | 'services' | 'bookings' | 'messages' | 'earnings' | 'settings';
+type ProviderReviewSort = 'newest' | 'highest' | 'lowest';
 
 const SECTIONS: Section[] = ['overview', 'services', 'bookings', 'messages', 'earnings', 'settings'];
 
 const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
   { id: 'services', label: 'Services', icon: Briefcase },
-  { id: 'bookings', label: 'Bookings', icon: Calendar, badge: 3 },
-  { id: 'messages', label: 'Messages', icon: MessageSquare, badge: 1 },
+  { id: 'bookings', label: 'Bookings', icon: Calendar},
+  { id: 'messages', label: 'Messages', icon: MessageSquare},
   { id: 'earnings', label: 'Earnings', icon: DollarSign },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -80,20 +85,37 @@ function ServiceTypeVisual({ type, selected = false }: { type: ServiceTypeDto; s
   );
 }
 
-function StatCard({ label, value, icon: Icon, accent }: {
-  label: string; value: string; icon: React.ElementType; accent: string;
+function StatCard({ label, value, icon: Icon, accent, onClick, hint }: {
+  label: string; value: string; icon: React.ElementType; accent: string; onClick?: () => void; hint?: string;
 }) {
+  const content = (
+    <div className="flex items-center gap-4">
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: accent + '20', color: accent }}>
+        <Icon className="w-6 h-6" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{label}</p>
+        <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">{value}</h3>
+        {hint && <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{hint}</p>}
+      </div>
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/30 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-amber-900 sm:p-6"
+      >
+        {content}
+      </button>
+    );
+  }
+
   return (
     <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: accent + '20', color: accent }}>
-          <Icon className="w-6 h-6" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{label}</p>
-          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">{value}</h3>
-        </div>
-      </div>
+      {content}
     </div>
   );
 }
@@ -118,6 +140,7 @@ function ProviderServiceSkeleton() {
 
 export default function ProviderDashboard() {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const { unreadCount } = useMessages();
   const params = useParams();
   const country = params?.country as string || 'lk';
@@ -125,8 +148,10 @@ export default function ProviderDashboard() {
   const isCanada = countryCode === 'ca';
   const locations = getCountryLocations(countryCode);
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const canUseProviderDashboard = user?.role === 'provider';
   const [section, setSection] = useState<Section>(SECTIONS.includes(tabParam as Section) ? tabParam as Section : 'overview');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [services, setServices] = useState<ProviderServiceDto[]>([]);
@@ -148,6 +173,7 @@ export default function ProviderDashboard() {
   const [formPriceType, setFormPriceType] = useState<'fixed' | 'hourly' | 'quote'>('fixed');
   const [formDuration, setFormDuration] = useState('');
   const [formStatus, setFormStatus] = useState<ProviderServiceDto['status']>('pending_review');
+  const [formImages, setFormImages] = useState<string[]>([]);
   const [formServiceTypeIds, setFormServiceTypeIds] = useState<string[]>([]);
   const [serviceTypeSearch, setServiceTypeSearch] = useState('');
   const [expandedServiceTypeIds, setExpandedServiceTypeIds] = useState<string[]>([]);
@@ -160,11 +186,23 @@ export default function ProviderDashboard() {
   const [reviewPanelsOpen, setReviewPanelsOpen] = useState<string[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState<Record<string, boolean>>({});
   const [reviewsError, setReviewsError] = useState<Record<string, string>>({});
+  const [providerReviews, setProviderReviews] = useState<ReviewDto[]>([]);
+  const [providerReviewsLoading, setProviderReviewsLoading] = useState(false);
+  const [providerReviewsLoaded, setProviderReviewsLoaded] = useState(false);
+  const [providerReviewsError, setProviderReviewsError] = useState('');
+  const [reviewsModalOpen, setReviewsModalOpen] = useState(false);
+  const [providerReviewServiceFilter, setProviderReviewServiceFilter] = useState('all');
+  const [providerReviewRatingFilter, setProviderReviewRatingFilter] = useState('all');
+  const [providerReviewSort, setProviderReviewSort] = useState<ProviderReviewSort>('newest');
+  const [serviceToDelete, setServiceToDelete] = useState<ProviderServiceDto | null>(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [bookingToDecline, setBookingToDecline] = useState<BookingDto | null>(null);
   const priceTypeComboboxId = React.useId();
   const statusComboboxId = React.useId();
   const provinceComboboxId = React.useId();
   const districtComboboxId = React.useId();
   const cityComboboxId = React.useId();
+  const serviceImageInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = () => { logout(); router.push(`/${country}/login`); };
   const selectSection = (nextSection: Section) => {
@@ -172,6 +210,22 @@ export default function ProviderDashboard() {
     setMobileNavOpen(false);
     router.push(`/${country}/provider-dashboard?tab=${nextSection}`, { scroll: false });
   };
+
+  useEffect(() => {
+    if (!user) {
+      router.replace(`/${country}/login?returnTo=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
+    if (user.role === 'customer') {
+      router.replace(`/${country}/dashboard`);
+      return;
+    }
+
+    if (user.role === 'admin') {
+      router.replace(`/${country}/admin`);
+    }
+  }, [country, pathname, router, user]);
 
   useEffect(() => {
     if (SECTIONS.includes(tabParam as Section)) {
@@ -183,6 +237,8 @@ export default function ProviderDashboard() {
   }, [tabParam]);
 
   const loadServicesData = useCallback(async () => {
+    if (!canUseProviderDashboard) return;
+
     setServicesLoading(true);
     setServicesError('');
     try {
@@ -198,15 +254,39 @@ export default function ProviderDashboard() {
     } finally {
       setServicesLoading(false);
     }
-  }, []);
+  }, [canUseProviderDashboard]);
 
   useEffect(() => {
-    if ((section === 'overview' || section === 'services') && !servicesLoaded) {
+    if (canUseProviderDashboard && (section === 'overview' || section === 'services') && !servicesLoaded) {
       loadServicesData();
     }
-  }, [loadServicesData, section, servicesLoaded]);
+  }, [canUseProviderDashboard, loadServicesData, section, servicesLoaded]);
+
+  const loadProviderReviews = useCallback(async () => {
+    if (!canUseProviderDashboard || !user?.id) return;
+
+    setProviderReviewsLoading(true);
+    setProviderReviewsError('');
+    try {
+      const { data } = await reviewApi.listProviderServiceReviews(user.id);
+      setProviderReviews(data);
+      setProviderReviewsLoaded(true);
+    } catch {
+      setProviderReviewsError('Could not load provider service reviews.');
+    } finally {
+      setProviderReviewsLoading(false);
+    }
+  }, [canUseProviderDashboard, user?.id]);
+
+  useEffect(() => {
+    if (canUseProviderDashboard && section === 'overview' && !providerReviewsLoaded) {
+      loadProviderReviews();
+    }
+  }, [canUseProviderDashboard, loadProviderReviews, providerReviewsLoaded, section]);
 
   const loadBookings = useCallback(async () => {
+    if (!canUseProviderDashboard) return;
+
     setBookingsLoading(true);
     setBookingsError('');
     try {
@@ -218,13 +298,13 @@ export default function ProviderDashboard() {
     } finally {
       setBookingsLoading(false);
     }
-  }, []);
+  }, [canUseProviderDashboard]);
 
   useEffect(() => {
-    if (section === 'bookings' && !bookingsLoaded) {
+    if (canUseProviderDashboard && section === 'bookings' && !bookingsLoaded) {
       loadBookings();
     }
-  }, [bookingsLoaded, loadBookings, section]);
+  }, [bookingsLoaded, canUseProviderDashboard, loadBookings, section]);
 
   const providerDistricts = getDistrictsByProvince(formProvinceId, countryCode);
   const effectiveFormDistrictId = isCanada ? providerDistricts[0]?.id || '' : formDistrictId;
@@ -259,6 +339,7 @@ export default function ProviderDashboard() {
     setFormPriceType('fixed');
     setFormDuration('');
     setFormStatus('pending_review');
+    setFormImages([]);
     setFormServiceTypeIds([]);
     setServiceTypeSearch('');
     setExpandedServiceTypeIds([]);
@@ -328,6 +409,7 @@ export default function ProviderDashboard() {
     setFormPriceType(service.price_type);
     setFormDuration(minutesToHoursInput(service.duration_mins));
     setFormStatus(service.status);
+    setFormImages(service.images || []);
     setFormServiceTypeIds(service.service_types.map(type => type.id));
     setExpandedServiceTypeIds(Array.from(new Set(service.service_types.map(type => type.parent_id).filter(Boolean) as string[])));
     setFormProvinceId(provinceId);
@@ -368,7 +450,7 @@ export default function ProviderDashboard() {
           `district:${effectiveFormDistrictId}`,
           `city:${formCityId}`,
         ],
-        images: [],
+        images: formImages,
         status: formStatus,
         service_type_ids: formServiceTypeIds,
       };
@@ -390,10 +472,26 @@ export default function ProviderDashboard() {
     }
   };
 
-  const deleteService = async (serviceId: string) => {
-    if (!window.confirm('Delete this service? This cannot be undone.')) return;
+  const addServiceImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
     setServicesError('');
+    try {
+      setFormImages([await readImageFileAsDataUrl(file)]);
+    } catch (err: unknown) {
+      setServicesError(err instanceof Error ? err.message : 'Could not read this service image.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const deleteService = async () => {
+    if (!serviceToDelete) return;
+
+    const serviceId = serviceToDelete.id;
+    setServicesError('');
+    setDeletingServiceId(serviceId);
     try {
       await providerApi.deleteService(serviceId);
       setServices(prev => prev.filter(service => service.id !== serviceId));
@@ -403,8 +501,14 @@ export default function ProviderDashboard() {
         return next;
       });
       setReviewPanelsOpen(prev => prev.filter(id => id !== serviceId));
+      setProviderReviews(prev => prev.filter(review => review.providerServiceId !== serviceId));
+      setServiceToDelete(null);
+      toast.success('Service deleted.');
     } catch {
       setServicesError('Could not delete this service.');
+      toast.error('Could not delete this service.');
+    } finally {
+      setDeletingServiceId(null);
     }
   };
 
@@ -435,6 +539,48 @@ export default function ProviderDashboard() {
     return (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1);
   };
 
+  const providerReviewAverage = useMemo(() => getReviewAverage(providerReviews), [providerReviews]);
+  const providerReviewSummary = providerReviews.length ? `${providerReviewAverage}/5` : '0/5';
+  const providerReviewServiceOptions = useMemo(() => {
+    const options = new Map<string, string>();
+
+    services.forEach(service => options.set(service.id, service.title));
+    providerReviews.forEach(review => {
+      if (review.providerServiceId) {
+        options.set(review.providerServiceId, review.serviceTitle || options.get(review.providerServiceId) || 'Service');
+      }
+    });
+
+    return Array.from(options.entries()).map(([id, title]) => ({ id, title }));
+  }, [providerReviews, services]);
+  const filteredProviderReviews = useMemo(() => {
+    const nextReviews = providerReviews
+      .filter(review => providerReviewServiceFilter === 'all' || review.providerServiceId === providerReviewServiceFilter)
+      .filter(review => providerReviewRatingFilter === 'all' || review.rating === Number(providerReviewRatingFilter));
+
+    return [...nextReviews].sort((a, b) => {
+      if (providerReviewSort === 'highest') return b.rating - a.rating || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (providerReviewSort === 'lowest') return a.rating - b.rating || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [providerReviewRatingFilter, providerReviewServiceFilter, providerReviewSort, providerReviews]);
+
+  const getProviderReviewServiceTitle = (review: ReviewDto) => {
+    if (review.serviceTitle) return review.serviceTitle;
+    return services.find(service => service.id === review.providerServiceId)?.title || 'Service';
+  };
+
+  const openProviderReviewsModal = () => {
+    setReviewsModalOpen(true);
+    if (!providerReviewsLoaded && !providerReviewsLoading) {
+      loadProviderReviews();
+    }
+  };
+
+  if (!canUseProviderDashboard) {
+    return null;
+  }
+
   // ── Section content ──────────────────────────────────────────────
   const renderOverview = () => (
     <div>
@@ -445,7 +591,14 @@ export default function ProviderDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5 mb-8">
         <StatCard label="Published Services" value={String(services.filter(service => service.status === 'active').length)} icon={Briefcase} accent="#10B981" />
         <StatCard label="Draft Services" value={String(services.filter(service => service.status === 'draft').length)} icon={Calendar} accent="#3B82F6" />
-        <StatCard label="Reviews" value="API required" icon={Star} accent="#F59E0B" />
+        <StatCard
+          label="Reviews"
+          value={providerReviewsLoading ? 'Loading...' : providerReviewsError ? 'API error' : providerReviewSummary}
+          icon={Star}
+          accent="#F59E0B"
+          hint={`${providerReviews.length} service ${providerReviews.length === 1 ? 'review' : 'reviews'}`}
+          onClick={openProviderReviewsModal}
+        />
       </div>
 
       <h2 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Service Activity</h2>
@@ -513,8 +666,11 @@ export default function ProviderDashboard() {
         ? await bookingApi.accept(bookingId)
         : await bookingApi.decline(bookingId);
       setBookings(current => current.map(booking => booking.id === bookingId ? data : booking));
+      if (action === 'decline') setBookingToDecline(null);
+      toast.success(action === 'accept' ? 'Booking accepted.' : 'Booking declined.');
     } catch {
       setBookingsError(`Could not ${action} this booking.`);
+      toast.error(`Could not ${action} this booking.`);
     } finally {
       setUpdatingBookingId(null);
     }
@@ -522,7 +678,7 @@ export default function ProviderDashboard() {
 
   const renderBookings = () => (
     <div>
-      <h1 className="mb-6 text-2xl font-extrabold text-slate-900 dark:text-white">Bookings</h1>
+      <h1 className="mb-6 text-2xl font-extrabold text-slate-900 dark:text-white">{t('provider.bookings')}</h1>
       {bookingsError && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
           {bookingsError}
@@ -535,7 +691,7 @@ export default function ProviderDashboard() {
           ))
         ) : bookings.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-            No booking requests yet.
+            {t('provider.noBookingRequests')}
           </div>
         ) : (
           bookings.map(booking => (
@@ -551,8 +707,8 @@ export default function ProviderDashboard() {
                     </span>
                   </div>
                   <h3 className="truncate text-lg font-black text-slate-900 dark:text-white">{booking.serviceTitle}</h3>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Customer: <span className="font-semibold text-slate-700 dark:text-slate-200">{booking.customerName}</span></p>
-                  <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Preferred time: {formatBookingTime(booking.scheduledTime)}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('provider.customer')}: <span className="font-semibold text-slate-700 dark:text-slate-200">{booking.customerName}</span></p>
+                  <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">{t('serviceDetail.preferredTime')}: {formatBookingTime(booking.scheduledTime)}</p>
                 </div>
                 {booking.status === 'pending' && (
                   <div className="flex shrink-0 gap-2">
@@ -567,7 +723,7 @@ export default function ProviderDashboard() {
                     </Button>
                     <Button
                       type="button"
-                      onClick={() => updateBookingStatus(booking.id, 'decline')}
+                      onClick={() => setBookingToDecline(booking)}
                       disabled={updatingBookingId === booking.id}
                       variant="destructive"
                     >
@@ -728,6 +884,36 @@ export default function ProviderDashboard() {
             <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" min="0.25" step="0.25" placeholder="Duration hours" />
             {renderServiceTypePicker()}
             <Textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Description" className="md:col-span-2" />
+            <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 sm:w-40">
+                  {formImages[0] ? (
+                    <img src={formImages[0]} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                      <ImagePlus className="h-8 w-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Service image</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{IMAGE_UPLOAD_TERMS}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => serviceImageInputRef.current?.click()} variant="secondary">
+                      <ImagePlus className="h-4 w-4" />
+                      {formImages[0] ? 'Change image' : 'Upload image'}
+                    </Button>
+                    {formImages[0] && (
+                      <Button type="button" onClick={() => setFormImages([])} variant="ghost">
+                        <X className="h-4 w-4" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <input ref={serviceImageInputRef} type="file" accept="image/*" className="hidden" onChange={addServiceImage} />
+                </div>
+              </div>
+            </div>
             <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" min="0" placeholder="Base price" />
             <Combobox
               id={priceTypeComboboxId}
@@ -886,6 +1072,9 @@ export default function ProviderDashboard() {
 
           return (
           <div key={service.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+            {service.images?.[0] && (
+              <img src={service.images[0]} alt="" className="mb-4 h-40 w-full rounded-xl border border-slate-200 object-cover dark:border-slate-800" />
+            )}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="font-bold text-slate-900 dark:text-white">{service.title}</h3>
@@ -924,7 +1113,7 @@ export default function ProviderDashboard() {
                 <Button type="button" onClick={() => editService(service)} variant="secondary" size="icon" aria-label={`Edit ${service.title}`} title="Edit service">
                   <Edit3 className="h-4 w-4" />
                 </Button>
-                <Button type="button" onClick={() => deleteService(service.id)} variant="destructive" size="icon" aria-label={`Delete ${service.title}`} title="Delete service">
+                <Button type="button" onClick={() => setServiceToDelete(service)} variant="destructive" size="icon" aria-label={`Delete ${service.title}`} title="Delete service">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -988,6 +1177,121 @@ export default function ProviderDashboard() {
     settings: <SettingsPanel />,
   };
 
+  const renderProviderReviewsModal = () => (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="provider-reviews-title">
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+        onClick={() => setReviewsModalOpen(false)}
+        aria-label="Close reviews"
+      />
+      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+          <div>
+            <h2 id="provider-reviews-title" className="text-xl font-black text-slate-900 dark:text-white">Service Reviews</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {providerReviewSummary} average from {providerReviews.length} service {providerReviews.length === 1 ? 'review' : 'reviews'}.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => setReviewsModalOpen(false)}
+            variant="ghost"
+            size="icon"
+            aria-label="Close reviews"
+            title="Close"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Service
+              <select
+                value={providerReviewServiceFilter}
+                onChange={event => setProviderReviewServiceFilter(event.target.value)}
+                className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              >
+                <option value="all">All services</option>
+                {providerReviewServiceOptions.map(service => (
+                  <option key={service.id} value={service.id}>{service.title}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Rating
+              <select
+                value={providerReviewRatingFilter}
+                onChange={event => setProviderReviewRatingFilter(event.target.value)}
+                className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              >
+                <option value="all">All ratings</option>
+                {[5, 4, 3, 2, 1].map(rating => (
+                  <option key={rating} value={rating}>{rating} star</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Sort
+              <select
+                value={providerReviewSort}
+                onChange={event => setProviderReviewSort(event.target.value as ProviderReviewSort)}
+                className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              >
+                <option value="newest">Newest first</option>
+                <option value="highest">Highest rating</option>
+                <option value="lowest">Lowest rating</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {providerReviewsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="mt-3 h-4 w-32" />
+                  <Skeleton className="mt-4 h-14 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : providerReviewsError ? (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+              {providerReviewsError}
+            </p>
+          ) : filteredProviderReviews.length === 0 ? (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-slate-500 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
+              {providerReviews.length ? 'No reviews match these filters.' : 'No service reviews yet.'}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {filteredProviderReviews.map(review => (
+                <div key={review.id} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 dark:text-white">{review.customerName}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        {formatReviewDate(review.updatedAt || review.createdAt)} · {getProviderReviewServiceTitle(review)}
+                      </p>
+                    </div>
+                    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      <Star className="h-3.5 w-3.5 fill-amber-500" /> {review.rating}/5
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{review.comment || 'No written comment.'}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderNavButton = (item: typeof NAV[number], variant: 'full' | 'rail' = 'full') => {
     const Icon = item.icon;
     const active = section === item.id;
@@ -1038,7 +1342,8 @@ export default function ProviderDashboard() {
             {displayBadge}
           </span>
         ) : (
-          active && <ChevronRight className="w-4 h-4 opacity-40" />
+          active
+          //  && <ChevronRight className="w-4 h-4 opacity-40" />
         )}
       </Button>
     );
@@ -1047,6 +1352,27 @@ export default function ProviderDashboard() {
   // ── Layout ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 lg:flex">
+      {reviewsModalOpen && renderProviderReviewsModal()}
+      <ConfirmationDialog
+        open={Boolean(bookingToDecline)}
+        title="Decline this booking?"
+        description={bookingToDecline ? `This will reject the booking request for ${bookingToDecline.serviceTitle} from ${bookingToDecline.customerName}.` : ''}
+        confirmLabel="Decline booking"
+        cancelLabel="Keep request"
+        loading={Boolean(bookingToDecline && updatingBookingId === bookingToDecline.id)}
+        onConfirm={() => bookingToDecline && updateBookingStatus(bookingToDecline.id, 'decline')}
+        onCancel={() => setBookingToDecline(null)}
+      />
+      <ConfirmationDialog
+        open={Boolean(serviceToDelete)}
+        title="Delete this service?"
+        description={serviceToDelete ? `${serviceToDelete.title} will be removed from your provider services. This action cannot be undone.` : ''}
+        confirmLabel="Delete service"
+        cancelLabel="Keep service"
+        loading={Boolean(serviceToDelete && deletingServiceId === serviceToDelete.id)}
+        onConfirm={deleteService}
+        onCancel={() => setServiceToDelete(null)}
+      />
 
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
         <div className="flex items-center gap-2.5">

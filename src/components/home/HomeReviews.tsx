@@ -1,62 +1,28 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Star, X } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { reviewApi, ReviewDto } from '@/lib/api';
 
 type HomeReview = {
+  id: string;
   name: string;
   role: string;
   rating: number;
   text: string;
 };
 
-const DEFAULT_REVIEWS: HomeReview[] = [
-  {
-    name: 'Nethmi Perera',
-    role: 'Home cleaning customer',
-    rating: 5,
-    text: 'The booking felt simple, and I could message the provider before confirming the work.',
-  },
-  {
-    name: 'Arun Sivakumar',
-    role: 'Electrical repair customer',
-    rating: 5,
-    text: 'AgoraTask helped me compare providers quickly instead of calling around all afternoon.',
-  },
-  {
-    name: 'Michelle Fernando',
-    role: 'Event support customer',
-    rating: 4,
-    text: 'The service details, prices, and reviews made it easier to choose with confidence.',
-  },
-  {
-    name: 'Daniel Clarke',
-    role: 'Handyman customer',
-    rating: 5,
-    text: 'I found a nearby provider, checked their profile, and booked the same day.',
-  },
-  {
-    name: 'Kavindi Jayasena',
-    role: 'Moving help customer',
-    rating: 5,
-    text: 'Clean interface, useful categories, and no awkward back-and-forth to understand the service.',
-  },
-];
-
-const STORAGE_KEY = 'agoratask_system_reviews';
-
-const readStoredReviews = (): HomeReview[] => {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) as HomeReview[] : [];
-  } catch {
-    return [];
-  }
+const mapSystemReview = (review: ReviewDto): HomeReview => {
+  return {
+    id: review.id,
+    name: review.customerName || 'AgoraTask customer',
+    role: 'AgoraTask user',
+    rating: review.rating,
+    text: review.comment,
+  };
 };
 
 function ReviewStars({ rating, onSelect }: { rating: number; onSelect?: (rating: number) => void }) {
@@ -103,15 +69,80 @@ export function HomeReviews() {
   const params = useParams<{ country?: string }>();
   const country = params.country || 'lk';
   const { user } = useAuth();
-  const [storedReviews, setStoredReviews] = useState<HomeReview[]>(readStoredReviews);
+  const [reviews, setReviews] = useState<HomeReview[]>([]);
+  const [mySystemReview, setMySystemReview] = useState<ReviewDto | null>(null);
+  const [loadingReviews, setLoadingReviews] = useState(true);
   const [authOpen, setAuthOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [notice, setNotice] = useState('');
+  const [shouldScrollReviews, setShouldScrollReviews] = useState(false);
+  const marqueeRef = useRef<HTMLDivElement | null>(null);
+  const reviewSetRef = useRef<HTMLDivElement | null>(null);
 
-  const reviews = useMemo(() => [...storedReviews, ...DEFAULT_REVIEWS], [storedReviews]);
-  const marqueeReviews = [...reviews, ...reviews];
+  useEffect(() => {
+    let mounted = true;
+
+    const loadReviews = async () => {
+      try {
+        const { data } = await reviewApi.listSystem();
+        if (mounted) setReviews(data.map(mapSystemReview));
+      } catch {
+        if (mounted) setNotice('Could not load AgoraTask reviews from the API.');
+      } finally {
+        if (mounted) setLoadingReviews(false);
+      }
+    };
+
+    loadReviews();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const marquee = marqueeRef.current;
+    const reviewSet = reviewSetRef.current;
+    if (!marquee || !reviewSet) return;
+
+    const updateScrollState = () => {
+      setShouldScrollReviews(reviewSet.scrollWidth > marquee.clientWidth);
+    };
+
+    updateScrollState();
+
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(marquee);
+    observer.observe(reviewSet);
+
+    return () => observer.disconnect();
+  }, [reviews]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadMySystemReview = async () => {
+      if (!user) {
+        setMySystemReview(null);
+        return;
+      }
+
+      try {
+        const { data } = await reviewApi.getMySystem();
+        if (mounted) setMySystemReview(data ?? null);
+      } catch {
+        if (mounted) setMySystemReview(null);
+      }
+    };
+
+    loadMySystemReview();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   const openReviewFlow = () => {
     setNotice('');
@@ -119,29 +150,47 @@ export function HomeReviews() {
       setAuthOpen(true);
       return;
     }
+    if (mySystemReview) {
+      setRating(mySystemReview.rating);
+      setComment(mySystemReview.comment);
+    }
     setReviewOpen(true);
   };
 
-  const submitReview = () => {
+  const submitReview = async () => {
     const trimmed = comment.trim();
     if (!trimmed) {
       setNotice('Write a short comment before submitting your review.');
       return;
     }
 
-    const nextReview: HomeReview = {
-      name: user?.name || 'AgoraTask customer',
-      role: 'AgoraTask user',
-      rating,
-      text: trimmed,
-    };
-    const nextReviews = [nextReview, ...storedReviews].slice(0, 8);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextReviews));
-    setStoredReviews(nextReviews);
-    setComment('');
-    setRating(5);
-    setNotice('Thanks. Your AgoraTask review is now shown on this browser.');
-    setReviewOpen(false);
+    try {
+      const { data } = mySystemReview
+        ? await reviewApi.update(mySystemReview.id, { rating, comment: trimmed })
+        : await reviewApi.createForSystem({ rating, comment: trimmed });
+      setComment('');
+      setRating(5);
+      setMySystemReview(data);
+      setNotice('Thanks. Your AgoraTask review was submitted for admin approval.');
+      setReviewOpen(false);
+    } catch {
+      setNotice('Could not save your AgoraTask review to the API.');
+    }
+  };
+
+  const deleteMySystemReview = async () => {
+    if (!mySystemReview) return;
+
+    try {
+      await reviewApi.delete(mySystemReview.id);
+      setMySystemReview(null);
+      setComment('');
+      setRating(5);
+      setNotice('Your AgoraTask review was deleted.');
+      setReviewOpen(false);
+    } catch {
+      setNotice('Could not delete your AgoraTask review.');
+    }
   };
 
   return (
@@ -159,17 +208,39 @@ export function HomeReviews() {
             onClick={openReviewFlow}
             className="inline-flex w-fit items-center justify-center rounded-lg bg-neutral-950 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
           >
-            Review AgoraTask
+            {mySystemReview ? 'Edit AgoraTask Review' : 'Review AgoraTask'}
           </button>
         </div>
 
-        <div className="home-review-marquee border-y border-neutral-200 py-6 dark:border-neutral-800">
-          <div className="home-review-track">
-            {marqueeReviews.map((review, index) => (
-              <ReviewCard key={`${review.name}-${index}`} review={review} />
-            ))}
+        {loadingReviews ? (
+          <div className="border-y border-neutral-200 py-12 text-sm font-semibold text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+            Loading AgoraTask reviews...
           </div>
-        </div>
+        ) : reviews.length > 0 ? (
+          <div
+            ref={marqueeRef}
+            className={`border-y border-neutral-200 py-6 dark:border-neutral-800 ${shouldScrollReviews ? 'home-review-marquee' : 'home-review-marquee-static'}`}
+          >
+            <div className={shouldScrollReviews ? 'home-review-track' : 'home-review-track-static'}>
+              <div ref={reviewSetRef} className="home-review-set">
+                {reviews.map(review => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+              {shouldScrollReviews && (
+                <div className="home-review-set" aria-hidden="true">
+                  {reviews.map(review => (
+                    <ReviewCard key={`${review.id}-copy`} review={review} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="border-y border-neutral-200 py-12 text-sm font-semibold text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+            No approved AgoraTask reviews yet.
+          </div>
+        )}
 
         {notice && <p className="mt-5 text-sm font-semibold text-neutral-500 dark:text-neutral-400">{notice}</p>}
       </div>
@@ -196,7 +267,9 @@ export function HomeReviews() {
               <X className="h-5 w-5" />
             </button>
             <h3 id="system-review-title" className="text-2xl font-black text-slate-950 dark:text-white">Rate AgoraTask</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Share your experience using the platform.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+              {mySystemReview ? 'Update your platform review. Updates are sent for admin approval.' : 'Share your experience using the platform.'}
+            </p>
             <div className="mt-6">
               <ReviewStars rating={rating} onSelect={setRating} />
             </div>
@@ -212,8 +285,17 @@ export function HomeReviews() {
               onClick={submitReview}
               className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-neutral-950 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
             >
-              Submit review
+              {mySystemReview ? 'Update review' : 'Submit review'}
             </button>
+            {mySystemReview && (
+              <button
+                type="button"
+                onClick={deleteMySystemReview}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/70 dark:text-red-300 dark:hover:bg-red-950/30"
+              >
+                Delete review
+              </button>
+            )}
           </div>
         </div>
       )}
