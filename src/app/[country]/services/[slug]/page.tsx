@@ -7,7 +7,7 @@ import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { bookingApi, publicServiceApi, reviewApi } from '@/lib/api';
 import type { PublicServiceDto, ReviewDto } from '@/lib/api';
-import { AlertCircle, CalendarDays, CheckCircle, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
+import { AlertCircle, CalendarDays, CheckCircle, ChevronDown, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatServicePrice } from '@/lib/countries';
@@ -22,8 +22,12 @@ type Review = {
   rating: number;
   comment: string;
   date: string;
+  timestamp: number;
+  status: ReviewDto['status'];
   isMine?: boolean;
 };
+
+type ReviewSort = 'relevant' | 'newest' | 'highest' | 'lowest';
 
 const formatReviewDate = (value: string) => {
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -37,6 +41,8 @@ const mapReview = (review: ReviewDto): Review => {
     rating: review.rating,
     comment: review.comment,
     date: formatReviewDate(review.updatedAt || review.createdAt),
+    timestamp: new Date(review.updatedAt || review.createdAt).getTime(),
+    status: review.status,
     isMine: review.isMine,
   };
 };
@@ -60,6 +66,8 @@ const getDefaultBookingTime = () => {
   date.setHours(9, 0, 0, 0);
   return toDateTimeLocalValue(date);
 };
+
+const REVIEWS_PER_PAGE = 5;
 
 function ServiceDetailSkeleton() {
   return (
@@ -120,6 +128,10 @@ export default function ServiceDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewNotice, setReviewNotice] = useState('');
+  const [myReview, setMyReview] = useState<Review | null>(null);
+  const [reviewRatingFilter, setReviewRatingFilter] = useState('all');
+  const [reviewSort, setReviewSort] = useState<ReviewSort>('relevant');
+  const [reviewPage, setReviewPage] = useState(1);
   const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -162,16 +174,89 @@ export default function ServiceDetailPage() {
     };
   }, [slug, t]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMyReview = async () => {
+      if (!service || user?.role !== 'customer') {
+        setMyReview(null);
+        return;
+      }
+
+      try {
+        const { data } = await reviewApi.getMine({ providerServiceId: service.id });
+        if (!cancelled) {
+          setMyReview(data ? mapReview(data) : null);
+        }
+      } catch (err: unknown) {
+        const status = typeof err === 'object' && err && 'response' in err
+          ? (err as { response?: { status?: number } }).response?.status
+          : undefined;
+        if (!cancelled && status === 404) {
+          setMyReview(null);
+        }
+      }
+    };
+
+    loadMyReview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [service, user?.id, user?.role]);
+
   const averageRating = useMemo(() => {
     if (!reviews.length) return '0.0';
     return (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1);
   }, [reviews]);
 
+  const filteredReviews = useMemo(() => {
+    const nextReviews = reviewRatingFilter === 'all'
+      ? [...reviews]
+      : reviews.filter(review => review.rating === Number(reviewRatingFilter));
+
+    return nextReviews.sort((a, b) => {
+      if (reviewSort === 'highest') return b.rating - a.rating || b.timestamp - a.timestamp;
+      if (reviewSort === 'lowest') return a.rating - b.rating || b.timestamp - a.timestamp;
+      if (reviewSort === 'newest') return b.timestamp - a.timestamp;
+      return b.rating - a.rating || b.timestamp - a.timestamp;
+    });
+  }, [reviewRatingFilter, reviewSort, reviews]);
+
+  const totalReviewPages = Math.max(1, Math.ceil(filteredReviews.length / REVIEWS_PER_PAGE));
+  const paginatedReviews = filteredReviews.slice((reviewPage - 1) * REVIEWS_PER_PAGE, reviewPage * REVIEWS_PER_PAGE);
+
+  useEffect(() => {
+    setReviewPage(1);
+  }, [reviewRatingFilter, reviewSort]);
+
+  useEffect(() => {
+    setReviewPage(page => Math.min(page, totalReviewPages));
+  }, [totalReviewPages]);
+
   const canManageReview = (review: Review) => Boolean(
     review.isMine || (user?.email && (review.customerEmail === user.email || (!review.customerEmail && review.customer === user.name)))
   );
 
-  const userReview = reviews.find(canManageReview);
+  const userReview = myReview ?? reviews.find(canManageReview);
+
+  const reviewPanelTitle = editingReviewId
+    ? t('serviceDetail.editReview')
+    : userReview
+      ? 'Your Review'
+      : t('serviceDetail.leaveReview');
+
+  const reviewPanelMessage = !user
+    ? 'Login as a customer to review this service.'
+    : user.role !== 'customer'
+      ? 'Only customer accounts can review this service.'
+      : userReview?.status === 'pending'
+        ? 'Your review is pending admin approval.'
+        : userReview?.status === 'hidden'
+          ? 'Your review is currently hidden by moderation. You can edit or delete it.'
+          : userReview
+            ? 'You already reviewed this service. You can edit or delete your review.'
+            : 'Share your experience with this service.';
 
   const formatDuration = (minutes: number | null) => {
     if (!minutes) return t('serviceDetail.flexible');
@@ -207,6 +292,9 @@ export default function ServiceDetailPage() {
     try {
       await reviewApi.delete(reviewId);
       setReviews(reviews.filter(review => review.id !== reviewId));
+      if (myReview?.id === reviewId) {
+        setMyReview(null);
+      }
       resetReviewForm();
       setReviewNotice(t('serviceDetail.reviewDeleted'));
     } catch {
@@ -240,10 +328,13 @@ export default function ServiceDetailPage() {
           rating: reviewRating,
           comment: reviewComment.trim(),
         });
+        const nextReview = mapReview(data);
         resetReviewForm();
+        setMyReview(nextReview);
         if (data.status === 'visible') {
-          const nextReview = mapReview(data);
-          setReviews(reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review));
+          setReviews(reviews.some(review => review.id === reviewIdToUpdate)
+            ? reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review)
+            : [nextReview, ...reviews]);
           setReviewNotice(t('serviceDetail.reviewUpdated'));
         } else {
           setReviews(reviews.filter(review => review.id !== reviewIdToUpdate));
@@ -256,9 +347,11 @@ export default function ServiceDetailPage() {
         rating: reviewRating,
         comment: reviewComment.trim(),
       });
+      const nextReview = mapReview(data);
       resetReviewForm();
+      setMyReview(nextReview);
       if (data.status === 'visible') {
-        setReviews([mapReview(data), ...reviews]);
+        setReviews([nextReview, ...reviews]);
       }
       setReviewNotice('Review sent for admin approval. It will appear after moderation.');
     } catch (err: unknown) {
@@ -442,7 +535,44 @@ export default function ServiceDetailPage() {
 
           <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
             <div className="space-y-4">
-                {reviews.map(review => (
+              {reviews.length > 0 && (
+                <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-3">
+                    <label className="relative">
+                      <span className="sr-only">Sort reviews</span>
+                      <select
+                        value={reviewSort}
+                        onChange={event => setReviewSort(event.target.value as ReviewSort)}
+                        className="h-11 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition-colors hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                      >
+                        <option value="relevant">Most relevant</option>
+                        <option value="newest">Newest first</option>
+                        <option value="highest">Highest rating</option>
+                        <option value="lowest">Lowest rating</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                    </label>
+                    <label className="relative">
+                      <span className="sr-only">Filter reviews by star rating</span>
+                      <select
+                        value={reviewRatingFilter}
+                        onChange={event => setReviewRatingFilter(event.target.value)}
+                        className="h-11 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition-colors hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                      >
+                        <option value="all">All ratings</option>
+                        {[5, 4, 3, 2, 1].map(rating => (
+                          <option key={rating} value={rating}>{rating}-star</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                    </label>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    {filteredReviews.length} shown
+                  </p>
+                </div>
+              )}
+              {paginatedReviews.map(review => (
                 <div key={review.id} className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
@@ -456,10 +586,10 @@ export default function ServiceDetailPage() {
                       </div>
                       {canManageReview(review) && (
                         <div className="flex gap-2 text-xs font-bold">
-                          <button type="button" onClick={() => handleEditReview(review)} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+                          <button type="button" onClick={() => handleEditReview(review)} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 cursor-pointer">
                             {t('common.edit')}
                           </button>
-                          <button type="button" onClick={() => handleDeleteReview(review.id)} className="text-red-600 hover:text-red-700 dark:text-red-400">
+                          <button type="button" onClick={() => handleDeleteReview(review.id)} className="text-red-600 hover:text-red-700 dark:text-red-400 cursor-pointer">
                             {t('common.delete')}
                           </button>
                         </div>
@@ -469,19 +599,55 @@ export default function ServiceDetailPage() {
                   <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{review.comment}</p>
                 </div>
               ))}
+              {reviews.length > 0 && filteredReviews.length === 0 && (
+                <div className="rounded-2xl border border-slate-200 p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  No reviews match this filter.
+                </div>
+              )}
+              {filteredReviews.length > REVIEWS_PER_PAGE && (
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    Page {reviewPage} of {totalReviewPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReviewPage(page => Math.max(1, page - 1))}
+                      disabled={reviewPage === 1}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewPage(page => Math.min(totalReviewPages, page + 1))}
+                      disabled={reviewPage === totalReviewPages}
+                      className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
+            {(!userReview || isReviewFormOpen) && (
             <div className="h-fit rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/50">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-bold">{editingReviewId ? t('serviceDetail.editReview') : t('serviceDetail.leaveReview')}</h3>
+                <h3 className="text-lg font-bold">{reviewPanelTitle}</h3>
                 {!isReviewFormOpen && !userReview && (
                   <button type="button" onClick={handleAddReview} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
                     {t('serviceDetail.addReview')}
                   </button>
                 )}
+                {!isReviewFormOpen && userReview && (
+                  <button type="button" onClick={() => handleEditReview(userReview)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 dark:bg-white dark:text-slate-900">
+                    {t('common.edit')}
+                  </button>
+                )}
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                Login as a customer to review. Every new review is checked by admin before it becomes public.
+                {reviewPanelMessage}
               </p>
               {isReviewFormOpen && (
                 <>
@@ -512,6 +678,7 @@ export default function ServiceDetailPage() {
               )}
               {reviewNotice && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{reviewNotice}</p>}
             </div>
+            )}
           </div>
         </section>
       </main>

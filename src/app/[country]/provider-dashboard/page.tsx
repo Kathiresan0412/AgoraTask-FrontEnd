@@ -28,8 +28,8 @@ const SECTIONS: Section[] = ['overview', 'services', 'bookings', 'messages', 'ea
 const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
   { id: 'overview', label: 'Overview', icon: BarChart2 },
   { id: 'services', label: 'Services', icon: Briefcase },
-  { id: 'bookings', label: 'Bookings', icon: Calendar, badge: 3 },
-  { id: 'messages', label: 'Messages', icon: MessageSquare, badge: 1 },
+  { id: 'bookings', label: 'Bookings', icon: Calendar},
+  { id: 'messages', label: 'Messages', icon: MessageSquare},
   { id: 'earnings', label: 'Earnings', icon: DollarSign },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -1038,7 +1038,8 @@ export default function ProviderDashboard() {
             {displayBadge}
           </span>
         ) : (
-          active && <ChevronRight className="w-4 h-4 opacity-40" />
+          active
+          //  && <ChevronRight className="w-4 h-4 opacity-40" />
         )}
       </Button>
     );

@@ -85,7 +85,17 @@ const getMessagePreview = (text?: string) => {
   return text;
 };
 
-export function MessagesPanel() {
+type MessagesPanelProps = {
+  initialParticipantEmail?: string | null;
+  initialParticipantId?: string | null;
+  focusComposerOnOpen?: boolean;
+};
+
+export function MessagesPanel({
+  initialParticipantEmail,
+  initialParticipantId,
+  focusComposerOnOpen = false,
+}: MessagesPanelProps = {}) {
   const { user } = useAuth();
   const { deleteMessage, editMessage, error, getInbox, isLoading, markRead, sendMessage } = useMessages();
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -103,6 +113,7 @@ export function MessagesPanel() {
   const [mediaError, setMediaError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -135,6 +146,33 @@ export function MessagesPanel() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [visibleMessages.length]);
+
+  useEffect(() => {
+    if (!initialParticipantEmail && !initialParticipantId) return;
+
+    const targetConversation = inbox.find(conversation =>
+      Boolean(
+        (initialParticipantId && conversation.participantIds.includes(initialParticipantId)) ||
+        (initialParticipantEmail && conversation.participants.includes(initialParticipantEmail))
+      )
+    );
+
+    if (targetConversation && targetConversation.id !== activeConvId) {
+      setActiveConvId(targetConversation.id);
+    }
+  }, [activeConvId, inbox, initialParticipantEmail, initialParticipantId]);
+
+  useEffect(() => {
+    if (!conv || !focusComposerOnOpen) return;
+    if (initialParticipantId && !conv.participantIds.includes(initialParticipantId)) return;
+    if (initialParticipantEmail && !conv.participants.includes(initialParticipantEmail)) return;
+
+    const focusTimer = window.setTimeout(() => {
+      replyInputRef.current?.focus();
+    }, 100);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [conv, focusComposerOnOpen, initialParticipantEmail, initialParticipantId]);
 
   useEffect(() => {
     if (conv && user && activeUnread > 0) markRead(conv.id, user.email);
@@ -579,7 +617,7 @@ export function MessagesPanel() {
                 <p className="truncate text-sm font-bold">{otherName}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Messages sync automatically</p>
               </div>
-              <div className="ml-auto flex items-center gap-1">
+              {/* <div className="ml-auto flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => startCall('voice')}
@@ -598,7 +636,7 @@ export function MessagesPanel() {
                 >
                   <Video className="h-5 w-5" />
                 </button>
-              </div>
+              </div> */}
             </div>
 
             {mediaError && (
@@ -723,6 +761,7 @@ export function MessagesPanel() {
                 <Paperclip className="h-5 w-5" />
               </button>
               <textarea
+                ref={replyInputRef}
                 value={replyText}
                 onChange={event => setReplyText(event.target.value)}
                 onKeyDown={event => {

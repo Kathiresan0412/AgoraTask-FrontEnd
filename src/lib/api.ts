@@ -257,11 +257,12 @@ export interface ReviewDto {
   id: string;
   bookingId: string | null;
   providerServiceId: string | null;
-  providerId: string;
+  providerId: string | null;
   customerId: string;
   customerName: string;
   customerEmail: string;
   customerProfileImage: string;
+  isForSystem: boolean;
   rating: number;
   comment: string;
   status: 'pending' | 'visible' | 'hidden' | 'deleted';
@@ -287,13 +288,14 @@ export interface AdminReviewDto {
   id: string;
   bookingId: string | null;
   providerServiceId: string | null;
-  providerId: string;
+  providerId: string | null;
   customerId: string | null;
   customerName: string;
   customerEmail: string;
   providerName: string;
   providerEmail: string;
   serviceTitle: string;
+  isForSystem: boolean;
   rating: number;
   comment: string;
   status: 'pending' | 'visible' | 'hidden' | 'deleted';
@@ -487,8 +489,14 @@ export const reviewApi = {
   listService: (providerServiceId: string) =>
     api.get<ReviewDto[]>(`/v1/reviews/services/${providerServiceId}`),
 
+  listSystem: () =>
+    api.get<ReviewDto[]>('/v1/reviews/system'),
+
   getMine: (target: ReviewTarget) =>
-    api.get<ReviewDto>('/v1/reviews/my', { params: target }),
+    api.get<ReviewDto | null>('/v1/reviews/my', { params: target }),
+
+  getMySystem: () =>
+    api.get<ReviewDto | null>('/v1/reviews/system/my'),
 
   create: (data: ReviewPayload) =>
     api.post<ReviewDto>('/v1/reviews', data),
@@ -498,6 +506,9 @@ export const reviewApi = {
 
   createForService: (providerServiceId: string, data: Omit<ReviewPayload, 'providerId' | 'providerServiceId'>) =>
     api.post<ReviewDto>(`/v1/reviews/services/${providerServiceId}`, data),
+
+  createForSystem: (data: Omit<ReviewPayload, 'providerId' | 'providerServiceId' | 'bookingId'>) =>
+    api.post<ReviewDto>('/v1/reviews/system', data),
 
   update: (reviewId: string, data: Partial<Pick<ReviewPayload, 'rating' | 'comment'>>) =>
     api.put<ReviewDto>(`/v1/reviews/${reviewId}`, data),
