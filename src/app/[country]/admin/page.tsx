@@ -827,6 +827,44 @@ export default function AdminDashboard() {
                 className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                  {formImageUrl ? (
+                    <img src={formImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                      <ImagePlus className="h-7 w-7" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Service type image</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{IMAGE_UPLOAD_TERMS}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => serviceTypeImageInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                      {formImageUrl ? 'Change image' : 'Upload image'}
+                    </button>
+                    {formImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormImageUrl('')}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                      >
+                        <X className="h-4 w-4" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input ref={serviceTypeImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleServiceTypeImageChange} />
+                </div>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">Accent Colour</label>
               <div className="flex items-center gap-3">
