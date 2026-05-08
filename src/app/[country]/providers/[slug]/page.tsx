@@ -5,6 +5,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { AuthRequiredModal } from '@/components/auth/AuthRequiredModal';
 import { AlertCircle, CheckCircle, ChevronDown, Clock, Mail, MapPin, MessageSquare, Send, Shield, Star } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +13,7 @@ import { useMessages } from '@/contexts/MessagesContext';
 import { publicServiceApi, reviewApi, PublicProviderDto, PublicServiceDto, ReviewDto } from '@/lib/api';
 import { formatServicePrice } from '@/lib/countries';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const FALLBACK_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Provider';
 
@@ -31,6 +33,13 @@ type ReviewSort = 'relevant' | 'newest' | 'highest' | 'lowest';
 
 const formatReviewDate = (value: string) => {
   return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const interpolate = (template: string, values: Record<string, string | number>) => {
+  return Object.entries(values).reduce(
+    (next, [key, value]) => next.replaceAll(`{${key}}`, String(value)),
+    template
+  );
 };
 
 const mapReview = (review: ReviewDto): Review => {
@@ -114,6 +123,7 @@ export default function ProviderProfilePage() {
   const slug = params.slug || '';
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { getConversation, sendMessage } = useMessages();
   const [provider, setProvider] = useState<PublicProviderDto | null>(null);
   const [isProviderLoading, setIsProviderLoading] = useState(true);
@@ -145,14 +155,14 @@ export default function ProviderProfilePage() {
         if (cancelled) return;
 
         setProvider(data);
-        setMessageText(`Hi ${data.name}, I would like to ask about your services.`);
+        setMessageText(interpolate(t('providerProfile.defaultMessage'), { name: data.name }));
         const { data: apiReviews } = await reviewApi.listProvider(data.userId);
         if (!cancelled) {
           setReviews(apiReviews.map(mapReview));
         }
       } catch {
         if (!cancelled) {
-          setProviderError('Could not load this provider from the API.');
+          setProviderError(t('providerProfile.loadError'));
         }
       } finally {
         if (!cancelled) {
@@ -237,22 +247,22 @@ export default function ProviderProfilePage() {
   const userReview = myReview ?? reviews.find(canManageReview);
 
   const reviewPanelTitle = editingReviewId
-    ? 'Edit Review'
+    ? t('serviceDetail.editReview')
     : userReview
-      ? 'Your Review'
-      : 'Leave a Review';
+      ? t('providerProfile.yourReview')
+      : t('serviceDetail.leaveReview');
 
   const reviewPanelMessage = !user
-    ? 'Login as a customer to review this provider.'
+    ? t('serviceDetail.reviewPanel.loginProvider')
     : user.role !== 'customer'
-      ? 'Only customer accounts can review providers.'
+      ? t('serviceDetail.reviewPanel.customerOnlyProvider')
       : userReview?.status === 'pending'
-        ? 'Your review is pending admin approval.'
+        ? t('serviceDetail.reviewPanel.pending')
         : userReview?.status === 'hidden'
-          ? 'Your review is currently hidden by moderation. You can edit or delete it.'
+          ? t('serviceDetail.reviewPanel.hidden')
           : userReview
-            ? 'You already reviewed this provider. You can edit or delete your review.'
-            : 'Share your experience with this provider.';
+            ? t('serviceDetail.reviewPanel.alreadyReviewedProvider')
+            : t('serviceDetail.reviewPanel.shareProvider');
 
   const providerMessagesHref = provider
     ? `/${country}/messages?providerId=${encodeURIComponent(provider.userId)}&providerEmail=${encodeURIComponent(provider.email)}&focus=composer`
@@ -305,19 +315,10 @@ export default function ProviderProfilePage() {
         setMyReview(null);
       }
       resetReviewForm();
-      setReviewNotice('Review deleted.');
+      setReviewNotice(t('serviceDetail.reviewDeleted'));
     } catch {
-      setReviewNotice('Could not delete review from the API.');
+      setReviewNotice(t('serviceDetail.reviewDeleteError'));
     }
-  };
-
-  const handleBookNow = () => {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-
-    router.push(`/${country}/dashboard`);
   };
 
   const handleSendMessage = async () => {
@@ -326,13 +327,13 @@ export default function ProviderProfilePage() {
 
     if (!user) {
       setMessageStatus('error');
-      setMessageError('Please log in as a customer before messaging this provider.');
+      setMessageError(t('providerProfile.loginBeforeMessage'));
       return;
     }
 
     if (user.role !== 'customer') {
       setMessageStatus('error');
-      setMessageError('Only customer accounts can start provider conversations from this page.');
+      setMessageError(t('providerProfile.customerOnlyMessage'));
       return;
     }
 
@@ -347,7 +348,7 @@ export default function ProviderProfilePage() {
       router.push(providerMessagesHref);
     } catch {
       setMessageStatus('error');
-      setMessageError(`Could not send the message. Make sure ${provider.email} exists as a provider account.`);
+      setMessageError(interpolate(t('providerProfile.messageSendError'), { email: provider.email }));
     }
   };
 
@@ -355,17 +356,17 @@ export default function ProviderProfilePage() {
     if (!provider) return;
 
     if (!user) {
-      setReviewNotice('Please log in as a customer before leaving a review.');
+      setReviewNotice(t('serviceDetail.loginBeforeReview'));
       return;
     }
 
     if (user.role !== 'customer') {
-      setReviewNotice('Only customer accounts can review providers.');
+      setReviewNotice(t('serviceDetail.reviewPanel.customerOnlyProvider'));
       return;
     }
 
     if (!reviewComment.trim()) {
-      setReviewNotice('Write a short review before submitting.');
+      setReviewNotice(t('serviceDetail.writeReviewFirst'));
       return;
     }
 
@@ -384,10 +385,10 @@ export default function ProviderProfilePage() {
           setReviews(reviews.some(review => review.id === reviewIdToUpdate)
             ? reviews.map(review => review.id === reviewIdToUpdate ? nextReview : review)
             : [nextReview, ...reviews]);
-          setReviewNotice('Review updated.');
+          setReviewNotice(t('serviceDetail.reviewUpdated'));
         } else {
           setReviews(reviews.filter(review => review.id !== reviewIdToUpdate));
-          setReviewNotice('Review update sent for admin approval. It will appear after moderation.');
+          setReviewNotice(t('providerProfile.reviewUpdateModeration'));
         }
         return;
       }
@@ -402,9 +403,9 @@ export default function ProviderProfilePage() {
       if (data.status === 'visible') {
         setReviews([nextReview, ...reviews]);
       }
-      setReviewNotice('Review sent for admin approval. It will appear after moderation.');
+      setReviewNotice(t('providerProfile.reviewSentModeration'));
     } catch (err: unknown) {
-      setReviewNotice(getApiErrorMessage(err) || 'Could not save review to the API.');
+      setReviewNotice(getApiErrorMessage(err) || t('serviceDetail.reviewSaveError'));
     }
   };
 
@@ -413,15 +414,15 @@ export default function ProviderProfilePage() {
   };
 
   const formatDuration = (minutes: number | null) => {
-    if (!minutes) return 'Flexible';
-    if (minutes < 60) return `${minutes} mins`;
+    if (!minutes) return t('serviceDetail.flexible');
+    if (minutes < 60) return `${minutes} ${t('serviceDetail.minutesShort')}`;
     const hours = minutes / 60;
-    return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} hrs`;
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${t('serviceDetail.hoursShort')}`;
   };
 
   if (isProviderLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <ProviderProfileSkeleton />
         <Footer />
@@ -431,15 +432,15 @@ export default function ProviderProfilePage() {
 
   if (!provider) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <main className="container mx-auto px-4 max-w-5xl py-20">
-          <div className="rounded-3xl border border-red-200 dark:border-red-900 bg-white dark:bg-slate-900 p-10 text-center">
+          <div className="rounded-2xl border border-red-200 bg-white p-10 text-center shadow-sm shadow-slate-200/60 dark:border-red-900 dark:bg-slate-900 dark:shadow-none">
             <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-            <p className="font-bold text-lg">Provider not found</p>
-            <p className="text-sm text-slate-500 mt-2">{providerError || 'No provider matched this URL.'}</p>
-            <Link href={`/${country}/services`} className="mt-6 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700">
-              Browse Services
+            <p className="font-bold text-lg">{t('providerProfile.notFound')}</p>
+            <p className="text-sm text-slate-500 mt-2">{providerError || t('providerProfile.noProviderMatched')}</p>
+            <Link href={`/${country}/services`} className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+              {t('serviceDetail.browseServices')}
             </Link>
           </div>
         </main>
@@ -449,54 +450,51 @@ export default function ProviderProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <Navbar />
 
-      <div className="w-full h-64 md:h-80 relative bg-slate-800">
+      <div className="relative h-52 w-full border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 sm:h-64 md:h-72">
         {provider.coverImage ? (
-          <img src={provider.coverImage} alt="Provider cover" className="w-full h-full object-cover opacity-60 mix-blend-overlay" />
+          <Image src={provider.coverImage} alt={t('providerProfile.coverAlt')} width={1400} height={420} className="h-full w-full object-cover opacity-80" unoptimized priority />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#f7f8fb] via-[#f7f8fb]/30 to-transparent dark:from-slate-950 dark:via-slate-950/40" />
       </div>
 
-      <div className="container mx-auto px-4 max-w-5xl -mt-24 relative z-10 pb-20">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-10 shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-200/60 dark:border-slate-800">
-          <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-start md:items-center border-b border-slate-100 dark:border-slate-800 pb-8 mb-8">
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white dark:border-slate-900 overflow-hidden bg-white shrink-0 shadow-lg -mt-16 md:-mt-20">
-              <img src={provider.profileImage || FALLBACK_AVATAR} alt={provider.name} className="w-full h-full object-cover" />
+      <div className="container relative z-10 mx-auto -mt-20 max-w-6xl px-4 pb-16 sm:-mt-24">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none md:p-8">
+          <div className="mb-8 flex flex-col gap-6 border-b border-slate-100 pb-8 dark:border-slate-800 md:flex-row md:items-center md:gap-8">
+            <div className="h-32 w-32 shrink-0 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-lg dark:border-slate-900 md:h-40 md:w-40">
+              <Image src={provider.profileImage || FALLBACK_AVATAR} alt={provider.name} width={160} height={160} className="h-full w-full object-cover" unoptimized />
             </div>
 
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">{provider.name}</h1>
-                <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/20" />
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex items-center gap-3">
+                <h1 className="min-w-0 text-3xl font-black tracking-normal md:text-5xl">{provider.name}</h1>
+                <CheckCircle className="h-6 w-6 shrink-0 text-blue-500 fill-blue-500/20" />
               </div>
-              <p className="text-slate-500 dark:text-slate-400 text-lg mb-4">{provider.description}</p>
+              <p className="mb-4 max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300 md:text-lg">{provider.description}</p>
 
-              <div className="flex flex-wrap gap-4 text-sm font-medium">
-                <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-4 py-2 rounded-full border border-amber-200/50 dark:border-amber-800/50">
-                  <Star className="w-4 h-4 fill-amber-500" /> {averageRating} ({reviews.length} reviews)
+              <div className="flex flex-wrap gap-3 text-sm font-bold">
+                <div className="flex items-center gap-1.5 rounded-full border border-amber-200/70 bg-amber-50 px-4 py-2 text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-400">
+                  <Star className="h-4 w-4 fill-amber-500" /> {averageRating} ({reviews.length} {t('serviceDetail.reviews')})
                 </div>
-                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-full border border-slate-200 dark:border-slate-700">
-                  <MapPin className="w-4 h-4" /> {provider.location || 'Service area not set'}
+                <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                  <MapPin className="h-4 w-4" /> {provider.location || t('providerProfile.serviceAreaNotSet')}
                 </div>
-                <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-4 py-2 rounded-full border border-green-200/50 dark:border-green-800/50">
-                  <Shield className="w-4 h-4" /> Verified Background
+                <div className="flex items-center gap-1.5 rounded-full border border-green-200/70 bg-green-50 px-4 py-2 text-green-700 dark:border-green-800/50 dark:bg-green-900/20 dark:text-green-400">
+                  <Shield className="h-4 w-4" /> {t('providerProfile.verifiedBackground')}
                 </div>
               </div>
             </div>
 
-            <div className="w-full md:w-auto flex flex-col gap-3">
-              {/* <button type="button" onClick={handleBookNow} className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/30 active:scale-95 text-center block">
-                Book Now
-              </button> */}
+            <div className="flex w-full flex-col gap-3 md:w-auto">
               {hasSentMessageToProvider && (
                 <Link
                   href={providerMessagesHref}
-                  className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-indigo-600 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-white hover:text-black px-8 py-3.5 rounded-xl font-bold transition-all active:scale-95 cursor-pointer"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-8 py-3.5 font-bold text-white transition hover:bg-slate-800 active:scale-[0.99] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 md:w-auto"
                 >
-                  <MessageSquare className="w-4 h-4" />
-                  Message
+                  <MessageSquare className="h-4 w-4" />
+                  {t('providerProfile.message')}
                 </Link>
               )}
             </div>
@@ -504,29 +502,27 @@ export default function ProviderProfilePage() {
 
           <div className={`grid gap-8 ${hasSentMessageToProvider ? '' : 'lg:grid-cols-[1fr_320px]'}`}>
             <div>
-              <h2 className="text-2xl font-bold mb-6">Available Services</h2>
-              <div className="grid md:grid-cols-2 gap-6">
+              <h2 className="mb-5 text-2xl font-black">{t('providerProfile.availableServices')}</h2>
+              <div className="grid gap-4 md:grid-cols-2 md:gap-5">
                 {provider.services.map(service => (
-                  <Link key={service.id} href={`/${country}/services/${service.id}`}>
-                    <div className="group border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl p-6 hover:shadow-xl hover:border-indigo-200 dark:hover:border-indigo-800 hover:bg-white dark:hover:bg-slate-900 transition-all flex flex-col h-full">
-                      <div className="mb-4 bg-white dark:bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm border border-slate-100 dark:border-slate-700">
-                        <CheckCircle className="w-6 h-6 text-indigo-500" />
+                  <Link key={service.id} href={`/${country}/services/${service.id}`} className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-lg hover:shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:shadow-none">
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <CheckCircle className="h-6 w-6 text-slate-500" />
                       </div>
-                      <h3 className="font-bold text-xl mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{service.title}</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">{service.description}</p>
+                      <h3 className="mb-2 line-clamp-2 text-xl font-black transition-colors group-hover:text-slate-700 dark:group-hover:text-slate-200">{service.title}</h3>
+                      <p className="mb-6 line-clamp-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{service.description}</p>
 
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-200/60 dark:border-slate-800">
-                      <span className="font-extrabold text-indigo-600 dark:text-indigo-400 text-lg">{formatPrice(service)}</span>
-                      <span className="text-xs font-semibold text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {formatDuration(service.durationMins)}
+                    <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-200/70 pt-4 dark:border-slate-800">
+                      <span className="min-w-0 truncate text-lg font-black text-slate-950 dark:text-white">{formatPrice(service)}</span>
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        <Clock className="h-3 w-3" /> {formatDuration(service.durationMins)}
                       </span>
                     </div>
-                  </div>
                   </Link>
                 ))}
                 {provider.services.length === 0 && (
                   <div className="md:col-span-2 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-500">
-                    This provider has not published active services yet.
+                    {t('providerProfile.noActiveServices')}
                   </div>
                 )}
               </div>
@@ -534,22 +530,22 @@ export default function ProviderProfilePage() {
 
             {!hasSentMessageToProvider && (
             <aside className="space-y-6">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Mail className="w-5 h-5 text-indigo-500" />
-                  <h2 className="font-bold text-lg">Message Provider</h2>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/50">
+                <div className="mb-3 flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                  <h2 className="font-bold text-lg">{t('providerProfile.messageProvider')}</h2>
                 </div>
                 <textarea
                   ref={messageBoxRef}
                   value={messageText}
                   onChange={event => setMessageText(event.target.value)}
                   rows={5}
-                  placeholder="Ask about availability, price, or service details"
-                  className="w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder={t('providerProfile.messagePlaceholder')}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:focus:border-slate-600 dark:focus:ring-slate-800/70"
                 />
                 {messageStatus === 'sent' && (
                   <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">
-                    Message sent. Continue in <Link href={providerMessagesHref} className="font-bold underline">Messages</Link>.
+                    {t('providerProfile.messageSent')} <Link href={providerMessagesHref} className="font-bold underline">{t('messages.title')}</Link>.
                   </div>
                 )}
                 {messageStatus === 'error' && (
@@ -561,25 +557,25 @@ export default function ProviderProfilePage() {
                 <button
                   onClick={handleSendMessage}
                   disabled={messageStatus === 'sending' || !messageText.trim()}
-                  className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   <Send className="w-4 h-4" />
-                  {messageStatus === 'sending' ? 'Sending...' : 'Send Message'}
+                  {messageStatus === 'sending' ? t('providerProfile.sendingMessage') : t('providerProfile.sendMessage')}
                 </button>
               </div>
             </aside>
             )}
           </div>
 
-          <section className="mt-10 border-t border-slate-100 dark:border-slate-800 pt-8">
+          <section className="mt-10 border-t border-slate-100 pt-8 dark:border-slate-800">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-2xl font-bold">Customer Reviews</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Read customer feedback and leave your own review.</p>
+                <h2 className="text-2xl font-bold">{t('providerProfile.customerReviews')}</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('providerProfile.reviewsHelp')}</p>
               </div>
               <div className="text-left md:text-right">
                 <p className="text-3xl font-black text-slate-900 dark:text-white">{averageRating}</p>
-                <p className="text-sm text-slate-500">{reviews.length} total reviews</p>
+                <p className="text-sm text-slate-500">{reviews.length} {t('serviceDetail.totalReviews')}</p>
               </div>
             </div>
 
@@ -589,36 +585,36 @@ export default function ProviderProfilePage() {
                   <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-wrap gap-3">
                       <label className="relative">
-                        <span className="sr-only">Sort reviews</span>
+                        <span className="sr-only">{t('providerProfile.sortReviews')}</span>
                         <select
                           value={reviewSort}
                           onChange={event => setReviewSort(event.target.value as ReviewSort)}
                           className="h-11 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition-colors hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
                         >
-                          <option value="relevant">Most relevant</option>
-                          <option value="newest">Newest first</option>
-                          <option value="highest">Highest rating</option>
-                          <option value="lowest">Lowest rating</option>
+                          <option value="relevant">{t('providerProfile.sortMostRelevant')}</option>
+                          <option value="newest">{t('providerProfile.sortNewest')}</option>
+                          <option value="highest">{t('providerProfile.sortHighest')}</option>
+                          <option value="lowest">{t('providerProfile.sortLowest')}</option>
                         </select>
                         <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                       </label>
                       <label className="relative">
-                        <span className="sr-only">Filter reviews by star rating</span>
+                        <span className="sr-only">{t('providerProfile.filterReviews')}</span>
                         <select
                           value={reviewRatingFilter}
                           onChange={event => setReviewRatingFilter(event.target.value)}
                           className="h-11 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition-colors hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
                         >
-                          <option value="all">All ratings</option>
+                          <option value="all">{t('providerProfile.allRatings')}</option>
                           {[5, 4, 3, 2, 1].map(rating => (
-                            <option key={rating} value={rating}>{rating}-star</option>
+                            <option key={rating} value={rating}>{interpolate(t('providerProfile.starOption'), { rating })}</option>
                           ))}
                         </select>
                         <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                       </label>
                     </div>
                     <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      {filteredReviews.length} shown
+                      {interpolate(t('providerProfile.shownCount'), { count: filteredReviews.length })}
                     </p>
                   </div>
                 )}
@@ -637,10 +633,10 @@ export default function ProviderProfilePage() {
                         {canManageReview(review) && (
                           <div className="flex gap-2 text-xs font-bold">
                             <button type="button" onClick={() => handleEditReview(review)} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 cursor-pointer">
-                              Edit
+                              {t('common.edit')}
                             </button>
                             <button type="button" onClick={() => handleDeleteReview(review.id)} className="text-red-600 hover:text-red-700 dark:text-red-400 cursor-pointer">
-                              Delete
+                              {t('common.delete')}
                             </button>
                           </div>
                         )}
@@ -651,13 +647,13 @@ export default function ProviderProfilePage() {
                 ))}
                 {reviews.length > 0 && filteredReviews.length === 0 && (
                   <div className="rounded-2xl border border-slate-200 p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                    No reviews match this filter.
+                    {t('providerProfile.noReviewsMatch')}
                   </div>
                 )}
                 {filteredReviews.length > REVIEWS_PER_PAGE && (
                   <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                      Page {reviewPage} of {totalReviewPages}
+                      {interpolate(t('providerProfile.pageCount'), { page: reviewPage, total: totalReviewPages })}
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -666,7 +662,7 @@ export default function ProviderProfilePage() {
                         disabled={reviewPage === 1}
                         className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
-                        Previous
+                        {t('providerProfile.previous')}
                       </button>
                       <button
                         type="button"
@@ -674,7 +670,7 @@ export default function ProviderProfilePage() {
                         disabled={reviewPage === totalReviewPages}
                         className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
-                        Next
+                        {t('providerProfile.next')}
                       </button>
                     </div>
                   </div>
@@ -687,12 +683,12 @@ export default function ProviderProfilePage() {
                   <h3 className="font-bold text-lg">{reviewPanelTitle}</h3>
                   {!isReviewFormOpen && !userReview && (
                     <button type="button" onClick={handleAddReview} className="rounded-xl bg-slate-900 dark:bg-white px-4 py-2 text-sm font-bold text-white dark:text-slate-900 hover:opacity-90 transition-opacity">
-                      Add Review
+                      {t('serviceDetail.addReview')}
                     </button>
                   )}
                   {!isReviewFormOpen && userReview && (
                     <button type="button" onClick={() => handleEditReview(userReview)} className="rounded-xl bg-slate-900 dark:bg-white px-4 py-2 text-sm font-bold text-white dark:text-slate-900 hover:opacity-90 transition-opacity">
-                      Edit
+                      {t('common.edit')}
                     </button>
                   )}
                 </div>
@@ -707,7 +703,7 @@ export default function ProviderProfilePage() {
                           key={rating}
                           onClick={() => setReviewRating(rating)}
                           className="w-9 h-9 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center justify-center transition-colors"
-                          aria-label={`${rating} star rating`}
+                          aria-label={interpolate(t('providerProfile.starRatingLabel'), { rating })}
                         >
                           <Star className={`w-5 h-5 ${rating <= reviewRating ? 'text-amber-500 fill-amber-500' : 'text-slate-300 dark:text-slate-600'}`} />
                         </button>
@@ -717,7 +713,7 @@ export default function ProviderProfilePage() {
                       value={reviewComment}
                       onChange={event => setReviewComment(event.target.value)}
                       rows={4}
-                      placeholder="Share how the service went"
+                      placeholder={t('providerProfile.reviewPlaceholder')}
                       className="w-full resize-none rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     <div className="mt-4 flex gap-3">
@@ -725,10 +721,10 @@ export default function ProviderProfilePage() {
                         onClick={handleSubmitReview}
                         className="flex-1 rounded-xl bg-slate-900 dark:bg-white px-4 py-3 text-sm font-bold text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
                       >
-                        {editingReviewId ? 'Update Review' : 'Submit Review'}
+                        {editingReviewId ? t('serviceDetail.updateReview') : t('serviceDetail.submitReview')}
                       </button>
                       <button type="button" onClick={resetReviewForm} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900">
-                        Cancel
+                        {t('common.cancel')}
                       </button>
                     </div>
                   </>
@@ -747,8 +743,8 @@ export default function ProviderProfilePage() {
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         onLoginSuccess={() => router.push(`/${country}/dashboard`)}
-        title="Login to book this service"
-        message="You need to be logged in before booking an authorized service."
+        title={t('serviceDetail.loginToBook')}
+        message={t('serviceDetail.loginToBookMessage')}
       />
       <Footer />
     </div>

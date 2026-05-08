@@ -41,7 +41,10 @@
   },
   "countries": {
     "lk": "ශ්‍රී ලංකාව",
-    "ca": "කැනඩාව"
+    "ca": "කැනඩාව",
+    "Sri Lanka": "ශ්‍රී ලංකාව",
+    "Canada": "කැනඩාව"
+
   },
   "home": {
     "heroTitle": "විශ්වාසනීය ප්‍රාදේශීය සේවා සොයන්න",
@@ -159,7 +162,9 @@
     "activeBookings": "සක්‍රිය වෙන්කිරීම්",
     "overallRating": "සමස්ත ශ්‍රේණිගත කිරීම",
     "newBookingRequests": "නව වෙන්කිරීම් ඉල්ලීම්",
-    "requestedBy": "ඉල්ලා සිටියේ"
+    "requestedBy": "ඉල්ලා සිටියේ",
+    "customer": "ගනුදෙනුකරු",
+    "noBookingRequests": "තවම වෙන්කිරීම් ඉල්ලීම් නැත."
   },
   "profile": {
     "title": "පැතිකඩ සහ සැකසීම්",
@@ -259,7 +264,21 @@
     "provider": "සැපයුම්කරු",
     "viewProviderProfile": "සැපයුම්කරුගේ පැතිකඩ බලන්න",
     "reviewNotice": "වෙන්කරවාගත් ගනුදෙනුකරුවන්ට මෙම සේවාව සමාලෝචනය කළ හැකිය.",
+    "reviewPanel": {
+      "loginService": "මෙම සේවාව සමාලෝචනය කිරීමට ගනුදෙනුකරුවෙකු ලෙස පිවිසෙන්න.",
+      "loginProvider": "මෙම සේවා සපයන්නා සමාලෝචනය කිරීමට ගනුදෙනුකරුවෙකු ලෙස පිවිසෙන්න.",
+      "customerOnlyService": "මෙම සේවාව සමාලෝචනය කළ හැක්කේ ගනුදෙනුකරු ගිණුම්වලට පමණි.",
+      "customerOnlyProvider": "සේවා සපයන්නන් සමාලෝචනය කළ හැක්කේ ගනුදෙනුකරු ගිණුම්වලට පමණි.",
+      "pending": "ඔබගේ සමාලෝචනය පරිපාලක අනුමැතිය බලාපොරොත්තුවෙන් ඇත.",
+      "hidden": "ඔබගේ සමාලෝචනය දැනට මධ්‍යස්ථකරණය මඟින් සැඟවී ඇත. ඔබට එය සංස්කරණය හෝ මකා දැමිය හැකිය.",
+      "alreadyReviewedService": "ඔබ දැනටමත් මෙම සේවාව සමාලෝචනය කර ඇත. ඔබට ඔබගේ සමාලෝචනය සංස්කරණය හෝ මකා දැමිය හැකිය.",
+      "alreadyReviewedProvider": "ඔබ දැනටමත් මෙම සේවා සපයන්නා සමාලෝචනය කර ඇත. ඔබට ඔබගේ සමාලෝචනය සංස්කරණය හෝ මකා දැමිය හැකිය.",
+      "shareService": "මෙම සේවාව පිළිබඳ ඔබගේ අත්දැකීම බෙදාගන්න.",
+      "shareProvider": "මෙම සේවා සපයන්නා පිළිබඳ ඔබගේ අත්දැකීම බෙදාගන්න."
+    },
+    "preferredTime": "කැමති වේලාව",
     "bookThisService": "මෙම සේවාව වෙන්කරවන්න",
+    "sendingRequest": "ඉල්ලීම යවමින්...",
     "serviceReviews": "සේවා සමාලෝචන",
     "reviewsHelp": "සමාලෝචන මෙම සේවාව සඳහා සම්පූර්ණ වූ වෙන්කිරීම් සමඟ සම්බන්ධ විය යුතුය.",
     "totalReviews": "මුළු සමාලෝචන",
@@ -272,6 +291,46 @@
     "submitReview": "සමාලෝචනය යවන්න",
     "loginToBook": "මෙම සේවාව වෙන්කරවීමට පිවිසෙන්න",
     "loginToBookMessage": "අනුමත සේවාවක් වෙන්කරවීමට පෙර ඔබ පිවිසී සිටිය යුතුය."
+  },
+  "providerProfile": {
+    "loadError": "API වෙතින් මෙම සේවා සපයන්නා පූරණය කළ නොහැකි විය.",
+    "defaultMessage": "ආයුබෝවන් {name}, ඔබගේ සේවා පිළිබඳව විමසීමට කැමතියි.",
+    "notFound": "සේවා සපයන්නා හමු නොවීය",
+    "noProviderMatched": "මෙම URL එකට ගැළපෙන සේවා සපයන්නෙකු නැත.",
+    "coverAlt": "සේවා සපයන්නාගේ ආවරණ රූපය",
+    "serviceAreaNotSet": "සේවා ප්‍රදේශය සකසා නැත",
+    "verifiedBackground": "සත්‍යාපිත පසුබිම",
+    "message": "පණිවුඩය",
+    "availableServices": "ලබාගත හැකි සේවා",
+    "noActiveServices": "මෙම සේවා සපයන්නා තවම සක්‍රිය සේවා ප්‍රකාශයට පත් කර නැත.",
+    "messageProvider": "සේවා සපයන්නාට පණිවුඩ කරන්න",
+    "messagePlaceholder": "ලබාගත හැකි වේලාව, මිල හෝ සේවා විස්තර ගැන අසන්න",
+    "loginBeforeMessage": "මෙම සේවා සපයන්නාට පණිවුඩ කිරීමට පෙර ගනුදෙනුකරුවෙකු ලෙස පිවිසෙන්න.",
+    "customerOnlyMessage": "මෙම පිටුවෙන් සේවා සපයන්නා සමඟ සංවාද ආරම්භ කළ හැක්කේ ගනුදෙනුකරු ගිණුම්වලට පමණි.",
+    "messageSendError": "පණිවුඩය යැවීමට නොහැකි විය. {email} සේවා සපයන්නාගේ ගිණුමක් බව තහවුරු කරන්න.",
+    "messageSent": "පණිවුඩය යවා ඇත. මෙහි ඉදිරියට යන්න",
+    "sendingMessage": "යවමින්...",
+    "sendMessage": "පණිවුඩය යවන්න",
+    "customerReviews": "ගනුදෙනුකරු සමාලෝචන",
+    "reviewsHelp": "ගනුදෙනුකරු අදහස් කියවා ඔබගේ සමාලෝචනයත් ලියන්න.",
+    "yourReview": "ඔබගේ සමාලෝචනය",
+    "reviewPlaceholder": "සේවාව කෙසේ වූද බෙදාගන්න",
+    "reviewUpdateModeration": "සමාලෝචන යාවත්කාලීනය පරිපාලක අනුමැතිය සඳහා යවා ඇත. මධ්‍යස්ථකරණයෙන් පසු පෙන්වනු ඇත.",
+    "reviewSentModeration": "සමාලෝචනය පරිපාලක අනුමැතිය සඳහා යවා ඇත. මධ්‍යස්ථකරණයෙන් පසු පෙන්වනු ඇත.",
+    "sortReviews": "සමාලෝචන අනුපිළිවෙලට සකසන්න",
+    "filterReviews": "තරු ශ්‍රේණිගත කිරීම අනුව සමාලෝචන පෙරන්න",
+    "sortMostRelevant": "වඩාත් අදාළ",
+    "sortNewest": "නවතම පළමුව",
+    "sortHighest": "ඉහළම ශ්‍රේණිගත කිරීම",
+    "sortLowest": "අඩුම ශ්‍රේණිගත කිරීම",
+    "allRatings": "සියලු ශ්‍රේණිගත කිරීම්",
+    "starOption": "තරු {rating}",
+    "shownCount": "{count} පෙන්වයි",
+    "noReviewsMatch": "මෙම පෙරහනට ගැළපෙන සමාලෝචන නැත.",
+    "pageCount": "{total} න් {page} පිටුව",
+    "previous": "පෙර",
+    "next": "ඊළඟ",
+    "starRatingLabel": "තරු {rating} ශ්‍රේණිගත කිරීම"
   },
   "assistant": {
     "title": "අගෝරා ටාස්ක් සහායක",
@@ -292,6 +351,45 @@
     "contactUs": "අපව සම්බන්ධ කරගන්න",
     "terms": "සේවා නියමයන්",
     "privacy": "පෞද්ගලිකත්ව ප්‍රතිපත්තිය",
-    "allRightsReserved": "සියලු අයිතිවාසිකම් ඇවිරිණි."
+    "allRightsReserved": "සියලු අයිතිවාසිකම් ඇවිරිණි.",
+    "navigation": "පාදක මෙනුව",
+    "legalLinks": "නීතිමය සබැඳි",
+    "locations": "ස්ථාන",
+    "popularServices": "ජනප්‍රිය සේවාවන්",
+    "seeAllLocations": "සියලු ස්ථාන බලන්න",
+    "seeAllServices": "සියලු සේවාවන් බලන්න",
+    "bookServices": "සේවාවක් වෙන්කරවන්න",
+    "joinAsProvider": "සපයන්නෙකු ලෙස එක්වන්න",
+    "selectCountry": "රට තෝරන්න",
+    "otherServices": "වෙනත් AgoraTask සේවාවන්",
+    "countryMarketplace": "සේවා වෙළඳපොළ.",
+    "verifiedProviders": "සත්‍යාපිත සපයන්නන් සහ පාරිභෝගික සමාලෝචන",
+    "searchIn": "{location} හි {service}",
+    "searchNearMe": "මා අසල {service}",
+    "links": {
+      "about": "අප ගැන",
+      "blog": "බ්ලොග්",
+      "faq": "නිතර අසන ප්‍රශ්න",
+      "browseServices": "සේවා බලන්න",
+      "customerDashboard": "පාරිභෝගික පුවරුව",
+      "messages": "පණිවුඩ",
+      "help": "උදව්",
+      "contact": "සම්බන්ධ වන්න",
+      "contactUs": "අපව සම්බන්ධ කරගන්න",
+      "beProfessional": "වෘත්තීය සපයන්නෙකු වන්න",
+      "providerDashboard": "සපයන්නාගේ පුවරුව",
+      "privacy": "පෞද්ගලිකත්වය",
+      "terms": "නියමයන්",
+      "cancellationPolicy": "අවලංගු කිරීමේ ප්‍රතිපත්තිය",
+      "accessibilityTools": "ප්‍රවේශ පහසුකම් මෙවලම්"
+    },
+    "social": {
+      "twitter": "ට්විටර්",
+      "facebook": "ෆේස්බුක්",
+      "instagram": "ඉන්ස්ටග්‍රෑම්",
+      "linkedin": "ලින්ක්ඩ්ඉන්",
+      "reviews": "සමාලෝචන",
+      "chat": "චැට්"
+    }
   }
 }

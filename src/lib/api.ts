@@ -86,6 +86,7 @@ export interface ServiceTypePayload {
   name: string;
   description?: string;
   icon?: string;
+  image_url?: string | null;
   color?: string;
   active?: boolean;
   sort_order?: number;
@@ -258,6 +259,7 @@ export interface ReviewDto {
   bookingId: string | null;
   providerServiceId: string | null;
   providerId: string | null;
+  serviceTitle?: string;
   customerId: string;
   customerName: string;
   customerEmail: string;
@@ -485,6 +487,9 @@ export const reviewApi = {
 
   listProvider: (providerId: string) =>
     api.get<ReviewDto[]>(`/v1/reviews/providers/${providerId}`),
+
+  listProviderServiceReviews: (providerId: string) =>
+    api.get<ReviewDto[]>(`/v1/reviews/providers/${providerId}/services`),
 
   listService: (providerServiceId: string) =>
     api.get<ReviewDto[]>(`/v1/reviews/services/${providerServiceId}`),

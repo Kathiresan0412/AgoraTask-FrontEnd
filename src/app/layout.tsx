@@ -5,6 +5,7 @@ import { MessagesProvider } from "@/contexts/MessagesContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { InitialAgoraLoader } from "@/components/layout/InitialAgoraLoader";
+import { AppToaster } from "@/components/ui/AppToaster";
 
 export const metadata: Metadata = {
   title: "AgoraTask | Service Marketplace",
@@ -26,6 +27,12 @@ export default function RootLayout({
       className="h-full antialiased"
       suppressHydrationWarning
     >
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        />
+      </head>
       <body className="min-h-full flex flex-col font-sans">
         <ThemeProvider>
           <LanguageProvider>
@@ -33,6 +40,7 @@ export default function RootLayout({
               <MessagesProvider>
                 <InitialAgoraLoader />
                 {children}
+                <AppToaster />
               </MessagesProvider>
             </AuthProvider>
           </LanguageProvider>

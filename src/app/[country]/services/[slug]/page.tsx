@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { bookingApi, publicServiceApi, reviewApi } from '@/lib/api';
 import type { PublicServiceDto, ReviewDto } from '@/lib/api';
 import { AlertCircle, CalendarDays, CheckCircle, ChevronDown, Clock, ImageIcon, MapPin, Shield, Star, UserRound } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { formatServicePrice } from '@/lib/countries';
@@ -247,16 +248,16 @@ export default function ServiceDetailPage() {
       : t('serviceDetail.leaveReview');
 
   const reviewPanelMessage = !user
-    ? 'Login as a customer to review this service.'
+    ? t('serviceDetail.reviewPanel.loginService')
     : user.role !== 'customer'
-      ? 'Only customer accounts can review this service.'
+      ? t('serviceDetail.reviewPanel.customerOnlyService')
       : userReview?.status === 'pending'
-        ? 'Your review is pending admin approval.'
+        ? t('serviceDetail.reviewPanel.pending')
         : userReview?.status === 'hidden'
-          ? 'Your review is currently hidden by moderation. You can edit or delete it.'
+          ? t('serviceDetail.reviewPanel.hidden')
           : userReview
-            ? 'You already reviewed this service. You can edit or delete your review.'
-            : 'Share your experience with this service.';
+            ? t('serviceDetail.reviewPanel.alreadyReviewedService')
+            : t('serviceDetail.reviewPanel.shareService');
 
   const formatDuration = (minutes: number | null) => {
     if (!minutes) return t('serviceDetail.flexible');
@@ -395,7 +396,7 @@ export default function ServiceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <main className="container mx-auto max-w-6xl px-4 py-10 md:py-14">
           <ServiceDetailSkeleton />
@@ -407,14 +408,14 @@ export default function ServiceDetailPage() {
 
   if (!service) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+      <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <main className="container mx-auto max-w-5xl px-4 py-20">
-          <div className="rounded-3xl border border-red-200 bg-white p-10 text-center dark:border-red-900 dark:bg-slate-900">
+          <div className="rounded-2xl border border-red-200 bg-white p-10 text-center shadow-sm shadow-slate-200/60 dark:border-red-900 dark:bg-slate-900 dark:shadow-none">
             <AlertCircle className="mx-auto mb-4 h-10 w-10 text-red-500" />
             <p className="text-lg font-bold">{t('serviceDetail.notFound')}</p>
             <p className="mt-2 text-sm text-slate-500">{error || t('serviceDetail.noServiceMatched')}</p>
-            <Link href={`/${country}/services`} className="mt-6 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700">
+            <Link href={`/${country}/services`} className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
               {t('serviceDetail.browseServices')}
             </Link>
           </div>
@@ -425,15 +426,15 @@ export default function ServiceDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-[#f7f8fb] font-sans text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <Navbar />
 
-      <main className="container mx-auto max-w-6xl px-4 py-10 md:py-14">
+      <main className="container mx-auto max-w-6xl px-4 py-6 sm:py-8 md:py-10">
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <div className="h-72 bg-slate-200 md:h-96">
+          <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+            <div className="h-64 bg-slate-200 sm:h-80 md:h-96">
               {service.images[0] ? (
-                <img src={service.images[0]} alt={service.title} className="h-full w-full object-cover" />
+                <Image src={service.images[0]} alt={service.title} width={900} height={520} className="h-full w-full object-cover" unoptimized priority />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400 dark:bg-slate-800">
                   <ImageIcon className="h-12 w-12" />
@@ -443,7 +444,7 @@ export default function ServiceDetailPage() {
             <div className="p-6 md:p-8">
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 {service.categories.map(category => (
-                  <span key={category} className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  <span key={category} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
                     {category}
                   </span>
                 ))}
@@ -452,33 +453,33 @@ export default function ServiceDetailPage() {
                 </span>
               </div>
 
-              <h1 className="text-3xl font-extrabold tracking-tight md:text-5xl">{service.title}</h1>
+              <h1 className="text-3xl font-black tracking-normal md:text-5xl">{service.title}</h1>
               <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">{service.description || t('serviceDetail.noDescription')}</p>
 
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.price')}</p>
-                  <p className="mt-2 text-lg font-black text-indigo-600 dark:text-indigo-400">{formatServicePrice(service.basePrice, service.priceType, countryCode)}</p>
+                  <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">{formatServicePrice(service.basePrice, service.priceType, countryCode)}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.duration')}</p>
-                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><Clock className="h-4 w-4 text-indigo-500" /> {formatDuration(service.durationMins)}</p>
+                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><Clock className="h-4 w-4 text-slate-500" /> {formatDuration(service.durationMins)}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.location')}</p>
-                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><MapPin className="h-4 w-4 text-indigo-500" /> {service.location || t('serviceDetail.flexible')}</p>
+                  <p className="mt-2 flex items-center gap-2 text-lg font-black"><MapPin className="h-4 w-4 text-slate-500" /> {service.location || t('serviceDetail.flexible')}</p>
                 </div>
               </div>
             </div>
           </section>
 
           <aside className="space-y-6">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+            <div className="sticky top-24 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
               <p className="text-xs font-bold uppercase text-slate-500">{t('serviceDetail.provider')}</p>
-              <Link href={`/${country}/providers/${service.provider.slug}`} className="mt-3 flex items-center gap-4 rounded-2xl border border-slate-200 p-4 transition-colors hover:border-indigo-200 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-900 dark:hover:bg-indigo-950/30">
+              <Link href={`/${country}/providers/${service.provider.slug}`} className="mt-3 flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700 dark:hover:bg-slate-900">
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   {service.provider.profileImage ? (
-                    <img src={service.provider.profileImage} alt={service.provider.name} className="h-full w-full object-cover" />
+                    <Image src={service.provider.profileImage} alt={service.provider.name} width={56} height={56} className="h-full w-full object-cover" unoptimized />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-400">
                       <UserRound className="h-6 w-6" />
@@ -487,7 +488,7 @@ export default function ServiceDetailPage() {
                 </div>
                 <div className="min-w-0">
                   <p className="font-black text-slate-900 dark:text-white">{service.provider.name}</p>
-                  <p className="mt-1 text-sm font-semibold text-indigo-600 dark:text-indigo-400">{t('serviceDetail.viewProviderProfile')}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">{t('serviceDetail.viewProviderProfile')}</p>
                 </div>
               </Link>
 
@@ -499,19 +500,19 @@ export default function ServiceDetailPage() {
               <label className="mt-5 block">
                 <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
                   <CalendarDays className="h-4 w-4" />
-                  Preferred time
+                  {t('serviceDetail.preferredTime')}
                 </span>
                 <input
                   type="datetime-local"
                   value={bookingTime}
                   min={toDateTimeLocalValue(new Date())}
                   onChange={event => setBookingTime(event.target.value)}
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-950 dark:focus:border-slate-600 dark:focus:ring-slate-800/70"
                 />
               </label>
 
-              <button type="button" onClick={handleBookService} disabled={isBooking} className="mt-4 block w-full rounded-xl bg-indigo-600 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {isBooking ? 'Sending request...' : t('serviceDetail.bookThisService')}
+              <button type="button" onClick={handleBookService} disabled={isBooking} className="mt-4 block w-full rounded-xl bg-slate-950 px-5 py-3.5 text-center text-sm font-bold text-white shadow-lg shadow-slate-300/60 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:shadow-none dark:hover:bg-slate-200">
+                {isBooking ? t('serviceDetail.sendingRequest') : t('serviceDetail.bookThisService')}
               </button>
 
               {bookingNotice && (
@@ -521,7 +522,7 @@ export default function ServiceDetailPage() {
           </aside>
         </div>
 
-        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 md:p-8">
+        <section className="mt-8 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none md:p-8">
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h2 className="text-2xl font-bold">{t('serviceDetail.serviceReviews')}</h2>
@@ -543,7 +544,7 @@ export default function ServiceDetailPage() {
                       <select
                         value={reviewSort}
                         onChange={event => setReviewSort(event.target.value as ReviewSort)}
-                        className="h-11 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition-colors hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        className="h-11 appearance-none rounded-xl border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition hover:border-slate-300 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:focus:ring-slate-800/70"
                       >
                         <option value="relevant">Most relevant</option>
                         <option value="newest">Newest first</option>
@@ -557,7 +558,7 @@ export default function ServiceDetailPage() {
                       <select
                         value={reviewRatingFilter}
                         onChange={event => setReviewRatingFilter(event.target.value)}
-                        className="h-11 appearance-none rounded-full border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition-colors hover:border-indigo-200 focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        className="h-11 appearance-none rounded-xl border border-slate-200 bg-white py-0 pl-5 pr-11 text-sm font-bold text-slate-700 outline-none transition hover:border-slate-300 focus:ring-4 focus:ring-slate-200/70 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:focus:ring-slate-800/70"
                       >
                         <option value="all">All ratings</option>
                         {[5, 4, 3, 2, 1].map(rating => (
@@ -573,7 +574,7 @@ export default function ServiceDetailPage() {
                 </div>
               )}
               {paginatedReviews.map(review => (
-                <div key={review.id} className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
+                <div key={review.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/60">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
                       <p className="font-bold">{review.customer}</p>

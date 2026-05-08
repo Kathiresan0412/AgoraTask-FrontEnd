@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import api from '@/lib/api';
 import axios from 'axios';
+import { IMAGE_UPLOAD_TERMS, readImageFileAsDataUrl } from '@/lib/image-upload';
 
 export function SettingsPanel() {
   const { user, updateProfile } = useAuth();
@@ -42,14 +43,19 @@ export function SettingsPanel() {
       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
       : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setProfileImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setProfileError('');
+    setProfileSuccess('');
+
+    try {
+      setProfileImage(await readImageFileAsDataUrl(file));
+    } catch (err: unknown) {
+      setProfileError(err instanceof Error ? err.message : 'Could not read this image.');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -142,6 +148,7 @@ export function SettingsPanel() {
                 <Shield className="w-3 h-3" />
                 {roleLabel}
               </span>
+              <p className="mt-3 max-w-sm text-xs leading-5 text-neutral-500 dark:text-neutral-400">{IMAGE_UPLOAD_TERMS}</p>
             </div>
           </div>
 
