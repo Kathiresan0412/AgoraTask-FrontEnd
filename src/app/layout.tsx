@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { MessagesProvider } from "@/contexts/MessagesContext";
@@ -6,6 +6,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { InitialAgoraLoader } from "@/components/layout/InitialAgoraLoader";
 import { AppToaster } from "@/components/ui/AppToaster";
+import { PWARegister } from "@/components/layout/PWARegister";
 
 export const metadata: Metadata = {
   title: "AgoraTask | Service Marketplace",
@@ -13,7 +14,18 @@ export const metadata: Metadata = {
   icons: {
     icon: "/agoratask-icon.svg",
     shortcut: "/agoratask-icon.svg",
+    apple: "/apple-touch-icon.png",
   },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "AgoraTask",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0067E8",
 };
 
 export default function RootLayout({
@@ -39,6 +51,7 @@ export default function RootLayout({
             <AuthProvider>
               <MessagesProvider>
                 <InitialAgoraLoader />
+                <PWARegister />
                 {children}
                 <AppToaster />
               </MessagesProvider>
