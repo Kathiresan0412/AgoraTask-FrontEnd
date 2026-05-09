@@ -44,6 +44,19 @@ const isImageSource = (value?: string | null) =>
 
 const getServiceTypeImage = (type: ServiceTypeDto) => type.image_url || type.imageUrl || (isImageSource(type.icon) ? type.icon : null);
 
+const getGeolocationErrorMessage = (error: GeolocationPositionError) => {
+  switch (error.code) {
+    case error.PERMISSION_DENIED:
+      return 'Allow location access to set your city.';
+    case error.POSITION_UNAVAILABLE:
+      return 'Could not detect your location right now.';
+    case error.TIMEOUT:
+      return 'Location detection timed out. Try again.';
+    default:
+      return 'Could not detect your location. Try again.';
+  }
+};
+
 const formatReviewDate = (value: string) => new Date(value).toLocaleDateString(undefined, {
   year: 'numeric',
   month: 'short',
@@ -383,8 +396,8 @@ export default function ProviderDashboard() {
         }
         setDetectingLocation(false);
       },
-      () => {
-        setLocationMessage('Allow location access to set your city.');
+      error => {
+        setLocationMessage(getGeolocationErrorMessage(error));
         setDetectingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
