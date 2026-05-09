@@ -259,8 +259,16 @@ export default function ProviderDashboard() {
         providerApi.listServices(),
         serviceTypeApi.list(),
       ]);
+      const activeTypes = typesResponse.data.filter(type => type.active);
+      const attachedTypes = servicesResponse.data.flatMap(service => service.service_types || []);
+      const serviceTypesById = new Map<string, ServiceTypeDto>();
+
+      [...activeTypes, ...attachedTypes].forEach(type => {
+        serviceTypesById.set(type.id, type);
+      });
+
       setServices(servicesResponse.data);
-      setServiceTypes(typesResponse.data.filter(type => type.active));
+      setServiceTypes(Array.from(serviceTypesById.values()));
       setServicesLoaded(true);
     } catch {
       setServicesError('Could not load your services.');
@@ -324,7 +332,8 @@ export default function ProviderDashboard() {
   const providerCities = isCanada
     ? providerDistricts.flatMap(district => district.cities)
     : getCitiesByDistrict(formProvinceId, formDistrictId, countryCode);
-  const rootServiceTypes = serviceTypes.filter(type => !type.parent_id);
+  const serviceTypeIds = new Set(serviceTypes.map(type => type.id));
+  const rootServiceTypes = serviceTypes.filter(type => !type.parent_id || !serviceTypeIds.has(type.parent_id));
   const childServiceTypesByParent = serviceTypes.reduce<Record<string, ServiceTypeDto[]>>((groups, type) => {
     if (!type.parent_id) return groups;
     return {
@@ -423,8 +432,10 @@ export default function ProviderDashboard() {
     setFormDuration(minutesToHoursInput(service.duration_mins));
     setFormStatus(service.status);
     setFormImages(service.images || []);
-    setFormServiceTypeIds(service.service_types.map(type => type.id));
-    setExpandedServiceTypeIds(Array.from(new Set(service.service_types.map(type => type.parent_id).filter(Boolean) as string[])));
+    const selectedServiceTypes = service.service_types || [];
+
+    setFormServiceTypeIds(selectedServiceTypes.map(type => type.id));
+    setExpandedServiceTypeIds(Array.from(new Set(selectedServiceTypes.map(type => type.parent_id).filter(Boolean) as string[])));
     setFormProvinceId(provinceId);
     setFormDistrictId(districtId);
     setFormCityId(cityId);
