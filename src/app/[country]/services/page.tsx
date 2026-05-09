@@ -21,6 +21,19 @@ const isImageSource = (value?: string | null) =>
 
 const getServiceTypeImage = (type: ServiceTypeDto) => type.image_url || type.imageUrl || (isImageSource(type.icon) ? type.icon : null);
 
+const getGeolocationErrorKey = (error: GeolocationPositionError) => {
+  switch (error.code) {
+    case error.PERMISSION_DENIED:
+      return 'services.locationDenied';
+    case error.POSITION_UNAVAILABLE:
+      return 'services.locationUnavailable';
+    case error.TIMEOUT:
+      return 'services.locationTimeout';
+    default:
+      return 'services.locationFailed';
+  }
+};
+
 function ServiceTypeVisual({ type }: { type: ServiceTypeDto }) {
   const image = getServiceTypeImage(type);
 
@@ -271,8 +284,8 @@ export default function ServicesPage() {
         }
         setDetectingLocation(false);
       },
-      () => {
-        setLocationMessage(t('services.locationDenied'));
+      error => {
+        setLocationMessage(t(getGeolocationErrorKey(error)));
         setDetectingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
