@@ -22,6 +22,37 @@ const getServiceTypeChip = (type: ServiceTypeDto) =>
   `${type.icon && !isImageIcon(type.icon) ? type.icon : '•'} ${type.name}`;
 const getCategoryServicesPath = (country: string, category?: string) =>
   category ? `/${country}/services?category=${encodeURIComponent(category)}` : `/${country}/services`;
+const normalizeSearchValue = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0b80-\u0bff\s-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+const SEARCH_ALIAS_GROUPS = [
+  ['plumb', 'plumber', 'plumbing', 'pipe', 'tap', 'toilet', 'drain', 'leak', 'water', 'குழாய்', 'தண்ணீர்', 'கசிவு', 'வடிகால்', 'கழிப்பறை'],
+  ['clean', 'cleaning', 'housekeeping', 'maid', 'கிளீனிங்', 'சுத்தம்'],
+  ['electric', 'electrician', 'wiring', 'power', 'மின்சாரம்'],
+  ['paint', 'painting', 'painter', 'பெயிண்ட்'],
+  ['garden', 'gardening', 'lawn', 'yard', 'தோட்டம்'],
+  ['repair', 'fix', 'maintenance', 'service', 'சரி', 'பழுது'],
+];
+const getSearchTerms = (value: string) => {
+  const normalized = normalizeSearchValue(value);
+  const terms = new Set([normalized]);
+
+  SEARCH_ALIAS_GROUPS.forEach(group => {
+    if (group.some(term => normalized.includes(term))) group.forEach(term => terms.add(term));
+  });
+  normalized.split(' ').filter(term => term.length > 1).forEach(term => terms.add(term));
+
+  return Array.from(terms).filter(Boolean);
+};
+const matchesSearchTerms = (value: string, terms: string[]) => {
+  const searchable = normalizeSearchValue(value);
+  return terms.some(term => searchable.includes(term));
+};
 
 function MessageText({ text }: { text: string }) {
   return (
@@ -75,9 +106,10 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
     ), 0)
     : 0;
   const searchChip = `${SEARCH_ICON} ${t('assistant.searchByName')}`;
+  const visibleServiceTypes = useMemo(() => serviceTypes.slice(0, 8), [serviceTypes]);
   const initialChips = useMemo(
-    () => [...serviceTypes.map(getServiceTypeChip), searchChip],
-    [searchChip, serviceTypes]
+    () => [...visibleServiceTypes.map(getServiceTypeChip), searchChip],
+    [searchChip, visibleServiceTypes]
   );
 
   const describeServices = (services: PublicServiceDto[], intro: string, category?: string) => {
@@ -103,7 +135,7 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
       setLoadingServiceTypes(true);
       try {
         const { data } = await serviceTypeApi.list();
-        if (!cancelled) setServiceTypes(data.filter(type => type.active).slice(0, 8));
+        if (!cancelled) setServiceTypes(data.filter(type => type.active));
       } catch {
         if (!cancelled) setServiceTypes([]);
       } finally {
@@ -132,6 +164,19 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const isMobileViewport = window.matchMedia('(max-width: 639px)').matches;
+    if (!isMobileViewport) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [open]);
 
   if (!allowGuest && (!user || user.role !== 'customer')) return null;
   if (user && user.role !== 'customer') return null;
@@ -185,7 +230,7 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
   const handleActionChip = (chip: string) => {
     addMsg('user', chip);
 
-    setTimeout(async () => {
+    window.setTimeout(async () => {
       if (chip.includes(t('assistant.messageProvider'))) {
         addMsg('bot', "Open a provider profile from the Services page and send your message there.");
       } else if (chip.includes(t('assistant.bookNow'))) {
@@ -219,21 +264,24 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
     addMsg('bot', `Searching the database for "${text}"...`);
 
     try {
-      const lower = text.toLowerCase();
-      if (['hello', 'hi', 'hey'].includes(lower)) {
+      const normalizedQuery = normalizeSearchValue(text);
+      if (['hello', 'hi', 'hey'].includes(normalizedQuery)) {
         setAwaitingCategory(true);
         addMsg('bot', "Hello! What service can I help you find today?", initialChips);
         return;
       }
 
+      const searchTerms = getSearchTerms(text);
       const matchedType = serviceTypes.find(type =>
-        type.name.toLowerCase().includes(lower) || lower.includes(type.name.toLowerCase())
+        matchesSearchTerms([type.name, type.slug, type.description || ''].join(' '), searchTerms) ||
+        searchTerms.some(term => normalizeSearchValue(type.name).includes(term) || normalizedQuery.includes(normalizeSearchValue(type.name)))
       );
       const { data } = await publicServiceApi.list({
         country,
         category: matchedType?.name,
+        search: matchedType ? undefined : text,
         page: 1,
-        limit: matchedType ? 3 : 50,
+        limit: 50,
       });
 
       const matches = matchedType
@@ -246,14 +294,15 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
             service.location,
             ...service.categories,
             ...service.serviceTypes.map(type => type.name),
-          ].filter(Boolean).join(' ').toLowerCase();
+          ].filter(Boolean).join(' ');
 
-          return searchable.includes(lower);
+          return matchesSearchTerms(searchable, searchTerms);
         }).slice(0, 3);
 
       if (matches.length) {
+        const totalMatches = matchedType ? data.pagination.total : matches.length;
         addMsg('bot',
-          describeServices(matches, `I found ${matches.length} matching service${matches.length === 1 ? '' : 's'} in the database.`, matchedType?.name),
+          describeServices(matches.slice(0, 3), `I found ${totalMatches} matching service${totalMatches === 1 ? '' : 's'} in the database.`, matchedType?.name),
           [`📅 ${t('assistant.bookNow')}`, `💬 ${t('assistant.messageProvider')}`, '🔙 Start over']
         );
       } else if (data.data.length) {
@@ -273,7 +322,7 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
     <>
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#171717] text-white shadow-2xl transition-transform hover:scale-110 active:scale-95 dark:bg-white dark:text-[#171717]"
+        className="fixed bottom-4 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#171717] text-white shadow-2xl transition-transform hover:scale-110 active:scale-95 dark:bg-white dark:text-[#171717] sm:bottom-6 sm:right-6"
         aria-label={open ? 'Close assistant messages' : 'Open assistant messages'}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-7 w-7" />}
@@ -285,7 +334,7 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[370px] max-h-[580px] flex flex-col bg-white dark:bg-neutral-900 rounded-3xl shadow-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        <div className="fixed inset-x-3 bottom-20 z-50 flex max-h-[calc(100dvh-6rem)] flex-col overflow-hidden overscroll-contain rounded-3xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-[370px] sm:max-h-[580px]">
 
           <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900">
             {/* <div className="w-10 h-10 bg-[#171717] dark:bg-white rounded-2xl flex items-center justify-center shrink-0">
@@ -324,7 +373,7 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
 
           {tab === 'assistant' ? (
             <>
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 max-h-[340px]">
+              <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 min-h-0 max-h-[calc(100dvh-16rem)] sm:max-h-[340px]">
                 {chat.map((msg, i) => (
                   <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.role === 'bot' && (
@@ -369,12 +418,12 @@ export default function CustomerAssistant({ allowGuest = false }: { allowGuest?:
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSend()}
                     placeholder={t('assistant.inputPlaceholder')}
-                    className="flex-1 bg-transparent text-sm text-neutral-800 dark:text-white placeholder:text-neutral-400 outline-none"
+                    className="min-w-0 flex-1 bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400 dark:text-white"
                   />
                   <button
                     onClick={handleSend}
                     disabled={!input.trim()}
-                    className="w-8 h-8 rounded-full bg-[#171717] dark:bg-white flex items-center justify-center hover:bg-black dark:hover:bg-neutral-200 transition-colors disabled:opacity-30"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#171717] transition-colors hover:bg-black disabled:opacity-30 dark:bg-white dark:hover:bg-neutral-200"
                   >
                     <Send className="w-3.5 h-3.5 text-white dark:text-[#171717]" />
                   </button>

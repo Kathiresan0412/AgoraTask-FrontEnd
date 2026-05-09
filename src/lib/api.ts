@@ -237,6 +237,8 @@ export interface PublicProviderDto {
 export interface PublicServiceFilters {
   country?: 'lk' | 'ca';
   category?: string;
+  search?: string;
+  q?: string;
   provinceId?: string;
   districtId?: string;
   cityId?: string;
